@@ -154,7 +154,7 @@ Adding secrets does **not** automatically re-run a failed workflow. Either:
 Every push to `main` runs `.github/workflows/deploy-pages.yml`, which:
 
 1. Builds the frontend with `VITE_BASE_PATH=/van-track/`
-2. Copies `index.html` → `404.html` for SPA routing on refresh
+2. Writes a `404.html` redirect shim so deep links (`/history`, `/admin`, …) load with HTTP 200 on GitHub Pages
 3. Deploys `frontend/dist` to GitHub Pages
 
 ### Local preview (GitHub Pages path)

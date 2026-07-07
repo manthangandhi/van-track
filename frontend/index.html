@@ -15,6 +15,25 @@
   <title>VanTrack</title>
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <!-- GitHub Pages SPA redirect restore (see scripts/prepare-gh-pages.mjs) -->
+  <script type="text/javascript">
+    (function (location) {
+      if (location.search[1] === '/') {
+        var decoded = location.search
+          .slice(1)
+          .split('&')
+          .map(function (segment) {
+            return segment.replace(/~and~/g, '&')
+          })
+          .join('?')
+        window.history.replaceState(
+          null,
+          null,
+          location.pathname.slice(0, -1) + decoded + location.hash
+        )
+      }
+    })(window.location)
+  </script>
 </head>
 <body>
   <div id="root"></div>

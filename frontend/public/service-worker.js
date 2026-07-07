@@ -1,7 +1,7 @@
 /// Service Worker for VanTrack
 // Handles offline support, caching, and sync
 
-const CACHE_NAME = 'vantrack-v2'
+const CACHE_NAME = 'vantrack-v3'
 const ASSETS_TO_CACHE = ['./offline.html', './icons/icon-192.png', './icons/icon-512.png']
 
 // Install event: cache offline assets
@@ -60,6 +60,18 @@ self.addEventListener('fetch', (event) => {
             return response || new Response('Offline - please try again when online', { status: 503 })
           })
         })
+    )
+  } else if (request.mode === 'navigate') {
+    // SPA: deep links may 404 on GitHub Pages; fall back to the app shell
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            return response
+          }
+          return caches.match('./index.html').then((cached) => cached || fetch('./index.html'))
+        })
+        .catch(() => caches.match('./index.html').then((cached) => cached || caches.match('./offline.html')))
     )
   } else {
     // Static assets: cache-first
