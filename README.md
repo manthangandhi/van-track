@@ -128,7 +128,8 @@ Live URL (after setup): **https://manthangandhi.github.io/van-track/**
    - `VITE_SUPABASE_URL` — your Supabase project URL
    - `VITE_SUPABASE_ANON_KEY` — your Supabase anon key
 
-2. **GitHub → Settings → Pages** — set **Source** to **GitHub Actions**
+2. **GitHub → Settings → Pages** — set **Source** to **GitHub Actions** (not “Deploy from a branch”).  
+   If you see the README instead of the login screen, this setting is wrong — switch it to **GitHub Actions**, then re-run the workflow.
 
 3. **Supabase → Authentication → URL configuration** — add redirect URLs:
    - `https://manthangandhi.github.io/van-track/`
