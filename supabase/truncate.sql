@@ -31,7 +31,10 @@ WHERE user_id IN (
   WHERE email IN (
     'admin@vantrack.test',
     'raj@vantrack.test',
-    'priya@vantrack.test'
+    'priya@vantrack.test',
+    'user1@vantrack.test',
+    'user2@vantrack.test',
+    'user3@vantrack.test'
   )
 );
 
@@ -39,7 +42,10 @@ DELETE FROM auth.users
 WHERE email IN (
   'admin@vantrack.test',
   'raj@vantrack.test',
-  'priya@vantrack.test'
+  'priya@vantrack.test',
+  'user1@vantrack.test',
+  'user2@vantrack.test',
+  'user3@vantrack.test'
 );
 
 -- Restore singleton org settings row (migration 015).
