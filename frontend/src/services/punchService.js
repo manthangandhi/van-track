@@ -1,18 +1,72 @@
 import { supabase } from './supabaseClient'
-import { haversineDistance } from '../utils/geo'
+import { haversineDistance, normalizeGpsAccuracy } from '../utils/geo'
+import { getLocalDateKey, getDayBoundsISO } from '../utils/helpers'
+import { blocksDuplicatePunch } from '../utils/punchHelpers'
+
+const PHOTO_BUCKET = 'punch-photos'
+const SIGNED_URL_TTL = 3600
+
+/**
+ * Extract storage path from a path or legacy signed URL
+ */
+export function getStoragePath(photoUrlOrPath) {
+  if (!photoUrlOrPath) return null
+  if (!photoUrlOrPath.startsWith('http')) return photoUrlOrPath
+
+  const match = photoUrlOrPath.match(/punch-photos\/([^?]+)/)
+  return match ? decodeURIComponent(match[1]) : null
+}
+
+/**
+ * Resolve a storage path (or legacy signed URL) to a fresh signed URL
+ */
+export async function getSignedPhotoUrl(photoUrlOrPath) {
+  if (!photoUrlOrPath) return null
+
+  const path = getStoragePath(photoUrlOrPath)
+  if (!path) {
+    return photoUrlOrPath.startsWith('http') ? photoUrlOrPath : null
+  }
+
+  const { data, error } = await supabase.storage
+    .from(PHOTO_BUCKET)
+    .createSignedUrl(path, SIGNED_URL_TTL)
+
+  if (error) {
+    console.error('Signed URL error:', error)
+    return null
+  }
+
+  return data.signedUrl
+}
+
+/**
+ * Attach fresh signed URLs to punch records for display
+ */
+export async function enrichPunchesWithSignedUrls(punches) {
+  return Promise.all(
+    punches.map(async (punch) => {
+      const referencePath = punch.profiles?.reference_selfie_url
+      return {
+        ...punch,
+        signed_photo_url: await getSignedPhotoUrl(punch.photo_url),
+        signed_reference_selfie_url: referencePath
+          ? await getSignedPhotoUrl(referencePath)
+          : null,
+      }
+    })
+  )
+}
 
 /**
  * Upload punch (selfie) to Supabase Storage
- * @param {string} employeeId - Employee UUID
- * @param {Blob} photoBlob - Compressed photo blob
- * @param {string} punchType - 'check_in' | 'midday' | 'check_out'
- * @returns {Promise<string>} Signed URL of uploaded photo
+ * @returns {Promise<string>} Storage path (not a signed URL)
  */
 export async function uploadPunchPhoto(employeeId, photoBlob, punchType) {
   const fileName = `${punchType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.jpg`
   const filePath = `${employeeId}/${fileName}`
 
-  const { data, error } = await supabase.storage.from('punch-photos').upload(filePath, photoBlob, {
+  const { data, error } = await supabase.storage.from(PHOTO_BUCKET).upload(filePath, photoBlob, {
     contentType: 'image/jpeg',
     upsert: false,
   })
@@ -22,16 +76,48 @@ export async function uploadPunchPhoto(employeeId, photoBlob, punchType) {
     throw error
   }
 
-  // Get signed URL (valid for 7 days)
-  const { data: signedData, error: signError } = await supabase.storage
-    .from('punch-photos')
-    .createSignedUrl(data.path, 604800) // 7 days
+  return data.path
+}
 
-  if (signError) {
-    throw signError
+/**
+ * Upload reference selfie during admin enrollment
+ */
+/**
+ * Save employee reference selfie + face descriptor (first-login enrollment)
+ */
+export async function saveEmployeeReferenceSelfie(employeeId, photoBlob, faceDescriptor) {
+  const path = await uploadReferenceSelfie(employeeId, photoBlob)
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      reference_selfie_url: path,
+      face_descriptor: faceDescriptor,
+      reference_selfie_enrolled_at: new Date().toISOString(),
+    })
+    .eq('id', employeeId)
+
+  if (error) {
+    throw error
   }
 
-  return signedData.signedUrl
+  return path
+}
+
+export async function uploadReferenceSelfie(employeeId, photoBlob) {
+  const filePath = `${employeeId}/reference_${Date.now()}.jpg`
+
+  const { data, error } = await supabase.storage.from(PHOTO_BUCKET).upload(filePath, photoBlob, {
+    contentType: 'image/jpeg',
+    upsert: true,
+  })
+
+  if (error) {
+    console.error('Reference selfie upload error:', error)
+    throw error
+  }
+
+  return data.path
 }
 
 /**
@@ -40,7 +126,12 @@ export async function uploadPunchPhoto(employeeId, photoBlob, punchType) {
  * @returns {Promise<Object>} Created punch record
  */
 export async function createPunch(punch) {
-  const { data, error } = await supabase.from('punches').insert([punch]).select()
+  const payload = {
+    ...punch,
+    gps_accuracy_meters: normalizeGpsAccuracy(punch.gps_accuracy_meters),
+  }
+
+  const { data, error } = await supabase.from('punches').insert([payload]).select()
 
   if (error) {
     console.error('Punch creation error:', error)
@@ -57,15 +148,15 @@ export async function createPunch(punch) {
  * @returns {Promise<Array>} Array of punch records
  */
 export async function getPunchesForDay(employeeId, date) {
-  const startOfDay = new Date(date + 'T00:00:00Z')
-  const endOfDay = new Date(date + 'T23:59:59Z')
+  const dateKey = getLocalDateKey(date)
+  const { start, end } = getDayBoundsISO(dateKey)
 
   const { data, error } = await supabase
     .from('punches')
     .select('*')
     .eq('employee_id', employeeId)
-    .gte('server_timestamp', startOfDay.toISOString())
-    .lte('server_timestamp', endOfDay.toISOString())
+    .gte('server_timestamp', start)
+    .lte('server_timestamp', end)
     .order('server_timestamp', { ascending: true })
 
   if (error) {
@@ -84,12 +175,15 @@ export async function getPunchesForDay(employeeId, date) {
  * @returns {Promise<Array>} Array of punch records
  */
 export async function getPunchesForDateRange(employeeId, startDate, endDate) {
+  const { start } = getDayBoundsISO(getLocalDateKey(startDate))
+  const { end } = getDayBoundsISO(getLocalDateKey(endDate))
+
   const { data, error } = await supabase
     .from('punches')
     .select('*')
     .eq('employee_id', employeeId)
-    .gte('server_timestamp', startDate)
-    .lte('server_timestamp', endDate)
+    .gte('server_timestamp', start)
+    .lte('server_timestamp', end)
     .order('server_timestamp', { ascending: false })
 
   if (error) {
@@ -107,7 +201,9 @@ export async function getPunchesForDateRange(employeeId, startDate, endDate) {
 export async function getFlaggedPunches() {
   const { data, error } = await supabase
     .from('punches')
-    .select('*, profiles(full_name, phone)')
+    .select(
+      '*, profiles(full_name, phone, reference_selfie_url), sites!site_id(name, latitude, longitude, radius_meters)'
+    )
     .eq('status', 'flagged')
     .order('created_at', { ascending: true })
 
@@ -141,6 +237,10 @@ export async function updatePunchStatus(punchId, status, comment = '') {
     throw error
   }
 
+  if (!data?.length) {
+    throw new Error('Punch not found or not authorized')
+  }
+
   return data[0]
 }
 
@@ -151,13 +251,9 @@ export async function updatePunchStatus(punchId, status, comment = '') {
  * @returns {Promise<boolean>} True if punch already exists
  */
 export async function hasPunchToday(employeeId, punchType) {
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDateKey()
   const punches = await getPunchesForDay(employeeId, today)
-  return punches.some(
-    (p) =>
-      p.punch_type === punchType &&
-      (p.status === 'auto_approved' || p.status === 'approved')
-  )
+  return punches.some((p) => p.punch_type === punchType && blocksDuplicatePunch(p))
 }
 
 /**
@@ -181,7 +277,8 @@ export function computePunchDetails(location, site, syncedLate = false) {
   }
 
   // GPS accuracy check
-  if (location.accuracy && location.accuracy > 100) {
+  const accuracyMeters = normalizeGpsAccuracy(location.accuracy)
+  if (accuracyMeters != null && accuracyMeters > 100) {
     flagReasons.push('poor_gps_accuracy')
   }
 
@@ -198,19 +295,53 @@ export function computePunchDetails(location, site, syncedLate = false) {
 }
 
 /**
+ * Get all punches for a date, grouped by employee
+ */
+export async function getTodayPunchesByEmployee(date) {
+  const dateKey = getLocalDateKey(date)
+  const { start, end } = getDayBoundsISO(dateKey)
+
+  const { data, error } = await supabase
+    .from('punches')
+    .select(`
+      *,
+      profiles (full_name, assigned_site_id),
+      sites!site_id (name, latitude, longitude, radius_meters)
+    `)
+    .gte('server_timestamp', start)
+    .lte('server_timestamp', end)
+    .order('server_timestamp', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching today punches:', error)
+    return {}
+  }
+
+  const byEmployee = {}
+  for (const punch of data || []) {
+    if (!byEmployee[punch.employee_id]) {
+      byEmployee[punch.employee_id] = {}
+    }
+    byEmployee[punch.employee_id][punch.punch_type] = punch
+  }
+
+  return byEmployee
+}
+
+/**
  * Get punch statistics for admin dashboard
  * @param {string} date - ISO date string
  * @returns {Promise<Object>} Statistics
  */
 export async function getDailyStats(date) {
-  const startOfDay = new Date(date + 'T00:00:00Z').toISOString()
-  const endOfDay = new Date(date + 'T23:59:59Z').toISOString()
+  const dateKey = getLocalDateKey(date)
+  const { start, end } = getDayBoundsISO(dateKey)
 
   const { data: punches, error } = await supabase
     .from('punches')
     .select('employee_id, punch_type, status')
-    .gte('server_timestamp', startOfDay)
-    .lte('server_timestamp', endOfDay)
+    .gte('server_timestamp', start)
+    .lte('server_timestamp', end)
 
   if (error) {
     console.error('Error fetching stats:', error)

@@ -1,87 +1,10 @@
 import { getSyncQueue, removeFromSyncQueue, addToSyncQueue } from './offlineStore'
 import { createPunch, uploadPunchPhoto } from './punchService'
 
-/**
- * Process sync queue when online
- * Uploads offline punches and syncs with server
- */
-export async function processSyncQueue(employeeId) {
-  const queue = await getSyncQueue()
+export { addToSyncQueue, getSyncQueue } from './offlineStore'
 
-  if (queue.length === 0) {
-    return { synced: 0, failed: 0 }
-  }
+let syncing = false
 
-  let synced = 0
-  let failed = 0
-
-  for (const item of queue) {
-    try {
-      if (item.type === 'punch') {
-        // Re-upload photo if stored as base64
-        let photoUrl = item.photoUrl
-        if (item.photoUrl.startsWith('data:')) {
-          const blob = base64ToBlob(item.photoUrl)
-          photoUrl = await uploadPunchPhoto(employeeId, blob, item.punchType)
-        }
-
-        // Create punch on server
-        await createPunch({
-          employee_id: employeeId,
-          punch_type: item.punchType,
-          photo_url: photoUrl,
-          latitude: item.latitude,
-          longitude: item.longitude,
-          gps_accuracy_meters: item.gpsAccuracy,
-          device_timestamp: item.deviceTimestamp,
-          synced_late: true, // Mark as synced late
-        })
-
-        await removeFromSyncQueue(item.id)
-        synced++
-      }
-    } catch (error) {
-      console.error('Error syncing punch:', error)
-      failed++
-    }
-  }
-
-  return { synced, failed }
-}
-
-/**
- * Monitor online/offline status and trigger sync when online
- */
-export function monitorConnectivity(onlineCallback, offlineCallback) {
-  const handleOnline = () => {
-    console.log('Back online, syncing punches...')
-    onlineCallback()
-  }
-
-  const handleOffline = () => {
-    console.log('Went offline')
-    offlineCallback()
-  }
-
-  window.addEventListener('online', handleOnline)
-  window.addEventListener('offline', handleOffline)
-
-  // Return cleanup function
-  return () => {
-    window.removeEventListener('online', handleOnline)
-    window.removeEventListener('offline', handleOffline)
-  }
-}
-
-/**
- * Check if device is currently online
- * @returns {boolean}
- */
-export function isOnline() {
-  return navigator.onLine
-}
-
-// Import from imageService
 function base64ToBlob(base64) {
   const parts = base64.split(',')
   const mimeMatch = parts[0].match(/:(.*?);/)
@@ -95,4 +18,92 @@ function base64ToBlob(base64) {
   }
 
   return new Blob([u8arr], { type: mime })
+}
+
+/**
+ * Process sync queue when online
+ */
+export async function processSyncQueue(employeeId) {
+  if (syncing) {
+    return { synced: 0, failed: 0, skipped: true }
+  }
+
+  const queue = await getSyncQueue()
+  if (queue.length === 0) {
+    return { synced: 0, failed: 0 }
+  }
+
+  syncing = true
+  let synced = 0
+  let failed = 0
+
+  try {
+    for (const item of queue) {
+      try {
+        if (item.type !== 'punch') continue
+
+        const ownerId = item.employeeId || employeeId
+        if (!ownerId) {
+          failed++
+          continue
+        }
+
+        let photoUrl = item.photoUrl
+        if (photoUrl?.startsWith('data:')) {
+          const blob = base64ToBlob(photoUrl)
+          photoUrl = await uploadPunchPhoto(ownerId, blob, item.punchType)
+        }
+
+        if (!photoUrl) {
+          failed++
+          continue
+        }
+
+        await createPunch({
+          employee_id: ownerId,
+          punch_type: item.punchType,
+          photo_url: photoUrl,
+          latitude: item.latitude,
+          longitude: item.longitude,
+          gps_accuracy_meters: item.gpsAccuracy,
+          device_timestamp: item.deviceTimestamp,
+          synced_late: true,
+          face_match_score: item.faceMatchScore ?? null,
+          client_flags: item.clientFlags ?? [],
+        })
+
+        await removeFromSyncQueue(item.id)
+        synced++
+      } catch (error) {
+        console.error('Error syncing punch:', error)
+        failed++
+      }
+    }
+  } finally {
+    syncing = false
+  }
+
+  return { synced, failed }
+}
+
+export function monitorConnectivity(onlineCallback, offlineCallback) {
+  const handleOnline = () => {
+    onlineCallback()
+  }
+
+  const handleOffline = () => {
+    offlineCallback()
+  }
+
+  window.addEventListener('online', handleOnline)
+  window.addEventListener('offline', handleOffline)
+
+  return () => {
+    window.removeEventListener('online', handleOnline)
+    window.removeEventListener('offline', handleOffline)
+  }
+}
+
+export function isOnline() {
+  return navigator.onLine
 }

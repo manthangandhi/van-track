@@ -7,10 +7,12 @@ import { supabase } from './supabaseClient'
  * @param {string} endDate - ISO date string
  * @returns {Promise<Array>} Attendance records by day
  */
-export async function getAttendanceDays(employeeId, startDate, endDate) {
+export async function getAttendanceDays(employeeId, startDate, endDate, options = {}) {
+  const { siteId = null, status = null } = options
+
   const { data, error } = await supabase
     .from('attendance_days')
-    .select('*')
+    .select('*, profiles(full_name, assigned_site_id, sites(id, name))')
     .eq('employee_id', employeeId)
     .gte('work_date', startDate)
     .lte('work_date', endDate)
@@ -21,7 +23,83 @@ export async function getAttendanceDays(employeeId, startDate, endDate) {
     return []
   }
 
-  return data
+  let records = data || []
+
+  if (siteId) {
+    records = await filterRecordsBySiteAssignment(records, [siteId])
+  }
+
+  if (status) {
+    records = records.filter((r) => r.day_status === status)
+  }
+
+  return records
+}
+
+/**
+ * Summarize employee attendance for a filtered period
+ */
+export function summarizeEmployeeAttendance(records) {
+  return records.reduce(
+    (acc, record) => {
+      acc.totalHours += record.hours_worked || 0
+      acc.totalDays += 1
+      switch (record.day_status) {
+        case 'full':
+          acc.fullDays += 1
+          break
+        case 'half':
+          acc.halfDays += 1
+          break
+        case 'short':
+          acc.shortDays += 1
+          break
+        case 'absent':
+          acc.absentDays += 1
+          break
+        case 'pending':
+          acc.pendingDays += 1
+          break
+        default:
+          break
+      }
+      if (record.day_flag_reasons?.includes('missing_midday')) {
+        acc.missingMidday += 1
+      }
+      return acc
+    },
+    {
+      totalHours: 0,
+      totalDays: 0,
+      fullDays: 0,
+      halfDays: 0,
+      shortDays: 0,
+      absentDays: 0,
+      pendingDays: 0,
+      missingMidday: 0,
+    }
+  )
+}
+
+/**
+ * Export personal timesheet rows to CSV
+ */
+export function generateEmployeeCSV(records) {
+  const headers = ['Date', 'Site', 'Status', 'Hours', 'Flags']
+  let csv = headers.join(',') + '\n'
+
+  records.forEach((record) => {
+    const row = [
+      record.work_date,
+      `"${record.profiles?.sites?.name || '—'}"`,
+      record.day_status,
+      (record.hours_worked || 0).toFixed(2),
+      `"${(record.day_flag_reasons || []).join('; ')}"`,
+    ]
+    csv += row.join(',') + '\n'
+  })
+
+  return csv
 }
 
 /**
@@ -50,12 +128,43 @@ export async function generateTimesheet(employeeIds, siteIds, startDate, endDate
     return []
   }
 
-  // Filter by site if needed
   if (siteIds && siteIds.length > 0) {
-    return data.filter((record) => siteIds.includes(record.profiles?.assigned_site_id))
+    return await filterRecordsBySiteAssignment(data, siteIds)
   }
 
   return data
+}
+
+export async function filterRecordsBySiteAssignment(records, siteIds) {
+  if (!records.length) return records
+
+  const dates = records.map((r) => r.work_date)
+  const minDate = dates.reduce((a, b) => (a < b ? a : b))
+  const maxDate = dates.reduce((a, b) => (a > b ? a : b))
+
+  const { data: assignments, error } = await supabase
+    .from('site_assignments')
+    .select('employee_id, site_id, start_date, end_date')
+    .in('site_id', siteIds)
+    .lte('start_date', maxDate)
+    .or(`end_date.is.null,end_date.gte.${minDate}`)
+
+  if (error) {
+    console.error('Assignment filter error:', error)
+    return records
+  }
+
+  if (!assignments?.length) return []
+
+  return records.filter((record) =>
+    assignments.some(
+      (a) =>
+        a.employee_id === record.employee_id &&
+        siteIds.includes(a.site_id) &&
+        a.start_date <= record.work_date &&
+        (!a.end_date || a.end_date >= record.work_date)
+    )
+  )
 }
 
 /**
@@ -80,12 +189,17 @@ export function aggregateTimesheetByEmployee(timesheetData) {
         shortDays: 0,
         absentDays: 0,
         pendingDays: 0,
+        missingMiddayDays: 0,
         records: [],
       }
     }
 
     aggregated[empId].records.push(record)
     aggregated[empId].totalHours += record.hours_worked || 0
+
+    if (record.day_flag_reasons?.includes('missing_midday')) {
+      aggregated[empId].missingMiddayDays += 1
+    }
     aggregated[empId].totalDays += 1
 
     switch (record.day_status) {
@@ -164,6 +278,7 @@ export function generateCSV(timesheetData) {
     'Half Days',
     'Short Days',
     'Absent Days',
+    'Missing Midday Days',
   ]
 
   let csv = headers.join(',') + '\n'
@@ -179,6 +294,7 @@ export function generateCSV(timesheetData) {
       emp.halfDays,
       emp.shortDays,
       emp.absentDays,
+      emp.missingMiddayDays || 0,
     ]
     csv += row.join(',') + '\n'
   })
@@ -204,6 +320,7 @@ export async function generateXLSX(timesheetData, fileName = 'timesheet.xlsx') {
     'Half Days': emp.halfDays,
     'Short Days': emp.shortDays,
     'Absent Days': emp.absentDays,
+    'Missing Midday Days': emp.missingMiddayDays || 0,
   }))
 
   const worksheet = XLSX.utils.json_to_sheet(formattedData)

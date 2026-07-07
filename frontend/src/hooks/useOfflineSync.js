@@ -6,23 +6,6 @@ export function useOfflineSync(employeeId) {
   const [syncError, setError] = useState(null)
   const [isOnlineStatus, setIsOnlineStatus] = useState(navigator.onLine)
 
-  useEffect(() => {
-    // Monitor connectivity changes
-    const cleanup = monitorConnectivity(
-      async () => {
-        // When back online
-        setIsOnlineStatus(true)
-        await syncOfflineData()
-      },
-      () => {
-        // When offline
-        setIsOnlineStatus(false)
-      }
-    )
-
-    return cleanup
-  }, [employeeId])
-
   const syncOfflineData = useCallback(async () => {
     if (!isOnline() || !employeeId) return
 
@@ -40,6 +23,24 @@ export function useOfflineSync(employeeId) {
       setIsSyncing(false)
     }
   }, [employeeId])
+
+  useEffect(() => {
+    if (employeeId && isOnline()) {
+      syncOfflineData()
+    }
+
+    const cleanup = monitorConnectivity(
+      async () => {
+        setIsOnlineStatus(true)
+        await syncOfflineData()
+      },
+      () => {
+        setIsOnlineStatus(false)
+      }
+    )
+
+    return cleanup
+  }, [employeeId, syncOfflineData])
 
   return {
     isOnline: isOnlineStatus,

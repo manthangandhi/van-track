@@ -1,6 +1,6 @@
 // IndexedDB wrapper for offline storage
 
-const DB_NAME = 'VanHajri'
+const DB_NAME = 'VanTrack'
 const DB_VERSION = 1
 const STORE_NAME = 'punches'
 const QUEUE_STORE_NAME = 'syncQueue'
@@ -89,6 +89,11 @@ export async function getSyncQueue() {
     request.onerror = () => reject(request.error)
     request.onsuccess = () => resolve(request.result)
   })
+}
+
+export async function getSyncQueueCount() {
+  const queue = await getSyncQueue()
+  return queue.length
 }
 
 export async function removeFromSyncQueue(id) {

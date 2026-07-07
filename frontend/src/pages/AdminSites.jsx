@@ -1,26 +1,46 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../services/supabaseClient'
-import { MapViewer } from '../components/MapViewer'
+import { upsertSite } from '../services/sitesService'
+import { SiteEditorShell } from '../components/SiteEditorShell'
 import { STRINGS } from '../utils/strings'
+import {
+  isValidLatitude,
+  isValidLongitude,
+  parseCoordinatePair,
+} from '../utils/geo'
+import { AppShell } from '../components/ui/AppShell'
+import { IconMapPin } from '../components/ui/Icons'
+
+const DEFAULT_SITE = {
+  name: '',
+  latitude: 20.5937,
+  longitude: 78.9629,
+  radius_meters: 500,
+  is_active: true,
+}
 
 export default function AdminSites() {
-  const navigate = useNavigate()
   const [sites, setSites] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [editingId, setEditingId] = useState(null)
-  const [formData, setFormData] = useState({
-    name: '',
-    latitude: 20.5937,
-    longitude: 78.9629,
-    radius_meters: 500,
-  })
-  const [selectedSite, setSelectedSite] = useState(null)
-
+  const [panelMode, setPanelMode] = useState(null)
+  const [formData, setFormData] = useState(DEFAULT_SITE)
+  const [selectedSiteId, setSelectedSiteId] = useState(null)
+  const [siteSearch, setSiteSearch] = useState('')
+  const [pasteCoords, setPasteCoords] = useState('')
+  const [formError, setFormError] = useState(null)
+  const [showInactive, setShowInactive] = useState(true)
   useEffect(() => {
     loadSites()
   }, [])
+
+  const filteredSites = useMemo(() => {
+    const query = siteSearch.trim().toLowerCase()
+    return sites.filter((site) => {
+      if (!showInactive && site.is_active === false) return false
+      if (!query) return true
+      return (site.name || '').toLowerCase().includes(query)
+    })
+  }, [sites, siteSearch, showInactive])
 
   async function loadSites() {
     const { data } = await supabase.from('sites').select('*').order('name')
@@ -28,199 +48,221 @@ export default function AdminSites() {
     setLoading(false)
   }
 
-  async function handleSave() {
-    if (editingId) {
-      await supabase.from('sites').update(formData).eq('id', editingId)
-    } else {
-      await supabase.from('sites').insert([formData])
-    }
-    await loadSites()
-    setShowForm(false)
-    setEditingId(null)
-    setFormData({
-      name: '',
-      latitude: 20.5937,
-      longitude: 78.9629,
-      radius_meters: 500,
-    })
+  function openCreate() {
+    setPanelMode('create')
+    setSelectedSiteId(null)
+    setFormData(DEFAULT_SITE)
+    setPasteCoords('')
+    setFormError(null)
   }
 
-  async function handleDelete(siteId) {
-    if (window.confirm('Delete this site?')) {
-      await supabase.from('sites').delete().eq('id', siteId)
-      await loadSites()
+  function openView(site) {
+    setPanelMode('view')
+    setSelectedSiteId(site.id)
+    setFormData({
+      id: site.id,
+      name: site.name,
+      latitude: Number(site.latitude),
+      longitude: Number(site.longitude),
+      radius_meters: site.radius_meters,
+      is_active: site.is_active !== false,
+    })
+    setPasteCoords('')
+    setFormError(null)
+  }
+
+  function openEdit() {
+    setPanelMode('edit')
+  }
+
+  function closePanel() {
+    setPanelMode(null)
+    setSelectedSiteId(null)
+    setFormData(DEFAULT_SITE)
+    setFormError(null)
+    setPasteCoords('')
+  }
+
+  function updateCoordinates({ latitude, longitude }) {
+    setFormData((prev) => ({
+      ...prev,
+      latitude: Number(latitude.toFixed(6)),
+      longitude: Number(longitude.toFixed(6)),
+    }))
+  }
+
+  function handleCoordinateInput(field, rawValue) {
+    if (rawValue === '' || rawValue === '-') {
+      setFormData((prev) => ({ ...prev, [field]: rawValue }))
+      return
     }
+    const parsed = Number(rawValue)
+    if (!Number.isNaN(parsed)) {
+      setFormData((prev) => ({ ...prev, [field]: parsed }))
+    }
+  }
+
+  function applyPastedCoordinates() {
+    const parsed = parseCoordinatePair(pasteCoords)
+    if (!parsed) {
+      setFormError(STRINGS.COORDINATES_INVALID)
+      return
+    }
+    setFormError(null)
+    updateCoordinates(parsed)
+    setPasteCoords(`${parsed.latitude}, ${parsed.longitude}`)
+  }
+
+  async function handleSave() {
+    setFormError(null)
+    if (!formData.name?.trim()) {
+      setFormError(STRINGS.SITE_NAME_REQUIRED)
+      return
+    }
+    if (!isValidLatitude(formData.latitude) || !isValidLongitude(formData.longitude)) {
+      setFormError(STRINGS.COORDINATES_INVALID)
+      return
+    }
+
+    const payload = {
+      name: formData.name.trim(),
+      latitude: Number(formData.latitude),
+      longitude: Number(formData.longitude),
+      radius_meters: Math.max(50, parseInt(formData.radius_meters, 10) || 500),
+      is_active: formData.is_active !== false,
+    }
+
+    if (panelMode === 'edit' && formData.id) {
+      const { data, error } = await upsertSite(payload, { id: formData.id })
+      if (error) {
+        setFormError(error.message)
+        return
+      }
+      await loadSites()
+      openView(data || { ...payload, id: formData.id })
+    } else {
+      const { data, error } = await upsertSite(payload)
+      if (error) {
+        setFormError(error.message)
+        return
+      }
+      await loadSites()
+      if (data) openView(data)
+    }
+  }
+
+  async function handleDelete() {
+    if (!formData.id || !window.confirm('Delete this site?')) return
+    const { error } = await supabase.from('sites').delete().eq('id', formData.id)
+    if (error) {
+      setFormError(error.message)
+      return
+    }
+    await loadSites()
+    closePanel()
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-green-600">{STRINGS.SITES}</h1>
-          <button
-            onClick={() => navigate('/admin')}
-            className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded"
-          >
-            {STRINGS.BACK}
-          </button>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto px-4 py-6">
-        <button
-          onClick={() => {
-            setShowForm(true)
-            setEditingId(null)
-            setFormData({
-              name: '',
-              latitude: 20.5937,
-              longitude: 78.9629,
-              radius_meters: 500,
-            })
-          }}
-          className="mb-4 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded"
-        >
+    <AppShell
+      title={STRINGS.SITES}
+      backTo="/admin"
+      maxWidth="max-w-[96rem]"
+      headerActions={
+        <button type="button" onClick={openCreate} className="btn-primary">
           + {STRINGS.ADD_SITE}
         </button>
-
-        {/* Form Modal */}
-        {showForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-              <h2 className="text-lg font-bold text-gray-800 mb-4">
-                {editingId ? STRINGS.EDIT : STRINGS.ADD_SITE}
-              </h2>
-              <div className="space-y-4">
-                <input
-                  type="text"
-                  placeholder="Site Name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <input
-                  type="number"
-                  placeholder={STRINGS.LATITUDE}
-                  step="0.0001"
-                  value={formData.latitude}
-                  onChange={(e) => setFormData({ ...formData, latitude: parseFloat(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <input
-                  type="number"
-                  placeholder={STRINGS.LONGITUDE}
-                  step="0.0001"
-                  value={formData.longitude}
-                  onChange={(e) => setFormData({ ...formData, longitude: parseFloat(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <input
-                  type="number"
-                  placeholder={STRINGS.RADIUS}
-                  value={formData.radius_meters}
-                  onChange={(e) => setFormData({ ...formData, radius_meters: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleSave}
-                    className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded"
-                  >
-                    {STRINGS.SAVE}
-                  </button>
-                  <button
-                    onClick={() => setShowForm(false)}
-                    className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded"
-                  >
-                    {STRINGS.CANCEL}
-                  </button>
-                </div>
-              </div>
+      }
+    >
+      <div className="grid grid-cols-1 xl:grid-cols-[18rem_1fr] gap-4 min-h-[calc(100vh-10rem)]">
+        <div className="card p-4 xl:max-h-[calc(100vh-10rem)] flex flex-col">
+          <h2 className="display-title text-base text-forest-900 mb-3">{STRINGS.SITES}</h2>
+          <input
+            type="search"
+            value={siteSearch}
+            onChange={(e) => setSiteSearch(e.target.value)}
+            placeholder={STRINGS.SEARCH_SITES}
+            className="input-field mb-2"
+          />
+          <label className="flex items-center gap-2 text-xs text-earth mb-3">
+            <input
+              type="checkbox"
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+              className="rounded border-forest-300"
+            />
+            {STRINGS.SHOW_INACTIVE}
+          </label>
+          {loading ? (
+            <p className="text-sm text-earth">{STRINGS.LOADING}...</p>
+          ) : filteredSites.length === 0 ? (
+            <p className="text-sm text-earth">{STRINGS.NO_DATA}</p>
+          ) : (
+            <div className="space-y-1.5 overflow-y-auto flex-1 pr-1">
+              {filteredSites.map((site) => (
+                <button
+                  key={site.id}
+                  type="button"
+                  onClick={() => openView(site)}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg transition border ${
+                    selectedSiteId === site.id
+                      ? 'bg-forest-100 border-forest-400 shadow-soft'
+                      : site.is_active === false
+                        ? 'bg-forest-50/30 border-forest-100 opacity-75'
+                        : 'bg-white border-forest-100 hover:border-forest-200 hover:bg-forest-50/50'
+                  }`}
+                >
+                  <p className="font-semibold text-sm text-forest-900 flex items-center gap-2">
+                    {site.name}
+                    {site.is_active === false && (
+                      <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-50 text-red-600">
+                        {STRINGS.INACTIVE}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-earth">{site.radius_meters}m · {Number(site.latitude).toFixed(4)}, {Number(site.longitude).toFixed(4)}</p>
+                </button>
+              ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* List */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow p-4">
-              <h2 className="text-lg font-bold text-gray-800 mb-4">Sites</h2>
-              {loading ? (
-                <p>{STRINGS.LOADING}...</p>
-              ) : sites.length === 0 ? (
-                <p className="text-gray-600">{STRINGS.NO_DATA}</p>
-              ) : (
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {sites.map((site) => (
-                    <button
-                      key={site.id}
-                      onClick={() => setSelectedSite(site)}
-                      className={`w-full text-left px-3 py-2 rounded transition ${
-                        selectedSite?.id === site.id
-                          ? 'bg-blue-100 border-2 border-blue-500'
-                          : 'bg-gray-50 hover:bg-gray-100 border border-gray-200'
-                      }`}
-                    >
-                      <p className="font-semibold text-sm">{site.name}</p>
-                      <p className="text-xs text-gray-600">{site.radius_meters}m radius</p>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Details */}
-          <div className="lg:col-span-2">
-            {selectedSite ? (
-              <div className="bg-white rounded-lg shadow p-6 space-y-4">
-                <h2 className="text-lg font-bold text-gray-800">{selectedSite.name}</h2>
-                <MapViewer
-                  latitude={selectedSite.latitude}
-                  longitude={selectedSite.longitude}
-                  siteLatitude={selectedSite.latitude}
-                  siteLongitude={selectedSite.longitude}
-                  siteRadius={selectedSite.radius_meters}
-                  title="Site Location"
-                />
-                <div className="bg-gray-50 rounded p-3 space-y-2 text-sm">
-                  <p>
-                    <strong>Latitude:</strong> {selectedSite.latitude}
-                  </p>
-                  <p>
-                    <strong>Longitude:</strong> {selectedSite.longitude}
-                  </p>
-                  <p>
-                    <strong>Radius:</strong> {selectedSite.radius_meters} meters
-                  </p>
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => {
-                      setEditingId(selectedSite.id)
-                      setFormData(selectedSite)
-                      setShowForm(true)
-                    }}
-                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded"
-                  >
+        <div className="card overflow-hidden min-h-[32rem] xl:min-h-0 flex flex-col">
+          {panelMode ? (
+            <>
+              {panelMode === 'view' && (
+                <div className="bg-forest-50 border-b border-forest-100 px-4 py-2 flex justify-end">
+                  <button type="button" onClick={openEdit} className="btn-secondary text-sm">
                     {STRINGS.EDIT}
                   </button>
-                  <button
-                    onClick={() => handleDelete(selectedSite.id)}
-                    className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded"
-                  >
-                    {STRINGS.DELETE}
-                  </button>
                 </div>
+              )}
+              <div className="flex-1 min-h-0">
+                <SiteEditorShell
+                  mode={panelMode === 'edit' ? 'edit' : panelMode}
+                  formData={formData}
+                  setFormData={setFormData}
+                  pasteCoords={pasteCoords}
+                  setPasteCoords={setPasteCoords}
+                  formError={formError}
+                  onApplyPaste={applyPastedCoordinates}
+                  onSave={handleSave}
+                  onCancel={closePanel}
+                  onDelete={panelMode === 'view' ? handleDelete : null}
+                  updateCoordinates={updateCoordinates}
+                  handleCoordinateInput={handleCoordinateInput}
+                />
               </div>
-            ) : (
-              <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
-                Select a site to view details
-              </div>
-            )}
-          </div>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-earth p-8">
+              <IconMapPin className="w-12 h-12 text-forest-200 mb-3" />
+              <p className="text-center max-w-sm">
+                Select a site from the list or add a new one to manage location, geofence, and staff assignments.
+              </p>
+            </div>
+          )}
         </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   )
 }

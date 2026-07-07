@@ -1,77 +1,183 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { AppShell } from '../components/ui/AppShell'
+import { ActionRow } from '../components/ui/ActionRow'
+import { KpiStrip } from '../components/ui/KpiStrip'
 import { STRINGS } from '../utils/strings'
+import { getAdminOverview } from '../services/analyticsService'
+import {
+  IconChart,
+  IconFlag,
+  IconUsers,
+  IconTree,
+  IconClipboard,
+  IconInsights,
+  IconMapPin,
+  IconClock,
+} from '../components/ui/Icons'
+import { AppTour } from '../components/AppTour'
+import { useAppTour } from '../hooks/useAppTour'
+import { ADMIN_TOUR_STEPS } from '../config/tourSteps'
 
 export default function AdminDashboard() {
   const navigate = useNavigate()
-  const { signOut, profile } = useAuth()
+  const { signOut, profile, user } = useAuth()
+  const { isOpen: tourOpen, stepIndex, skipTour, replayTour, goNext, goBack } = useAppTour(
+    user?.id,
+    'admin'
+  )
+  const [overview, setOverview] = useState(null)
 
-  const adminOptions = [
+  useEffect(() => {
+    getAdminOverview().then(setOverview)
+  }, [])
+
+  const actions = [
     {
       title: STRINGS.TODAY_VIEW,
-      icon: '📊',
+      icon: <IconChart className="w-5 h-5" />,
       path: '/admin/today',
-      description: 'View today attendance',
+      description: 'Live attendance across all field teams',
+      accent: 'forest',
     },
     {
       title: STRINGS.REVIEW_QUEUE,
-      icon: '🚩',
+      icon: <IconFlag className="w-5 h-5" />,
       path: '/admin/review',
-      description: 'Review flagged punches',
+      description: 'Review flagged punches and face matches',
+      accent: 'gold',
+      badge: overview?.flaggedCount,
     },
     {
-      title: STRINGS.EMPLOYEES,
-      icon: '👥',
-      path: '/admin/employees',
-      description: 'Manage employees',
-    },
-    {
-      title: STRINGS.SITES,
-      icon: '🌳',
-      path: '/admin/sites',
-      description: 'Manage sites',
+      title: STRINGS.STAFF_SITE_MAPPING,
+      icon: <IconUsers className="w-5 h-5" />,
+      path: '/admin/assignments',
+      description: 'Assign employees to sites for specific date ranges',
+      accent: 'teal',
     },
     {
       title: STRINGS.TIMESHEETS,
-      icon: '📋',
+      icon: <IconClipboard className="w-5 h-5" />,
       path: '/admin/timesheet',
-      description: 'Generate & export',
+      description: 'Payroll register and attendance exports',
+      accent: 'slate',
+    },
+    {
+      title: STRINGS.INSIGHTS,
+      icon: <IconInsights className="w-5 h-5" />,
+      path: '/admin/insights',
+      description: 'Trends, site hours, and team leaderboard',
+      accent: 'canopy',
+    },
+    {
+      title: STRINGS.EMPLOYEES,
+      icon: <IconUsers className="w-5 h-5" />,
+      path: '/admin/employees',
+      description: 'Enroll and manage field staff',
+      accent: 'earth',
+    },
+    {
+      title: STRINGS.SITES,
+      icon: <IconTree className="w-5 h-5" />,
+      path: '/admin/sites',
+      description: 'Pin forest sites and geofence radii',
+      accent: 'forest',
     },
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-green-600">{STRINGS.ADMIN_DASHBOARD}</h1>
-            <p className="text-sm text-gray-600">{profile?.full_name}</p>
-          </div>
+    <AppShell
+      showBrand
+      headerActions={
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
-            onClick={signOut}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded"
+            type="button"
+            onClick={replayTour}
+            className="btn-ghost text-sm py-1.5 px-2"
+            title={STRINGS.TOUR_REPLAY}
           >
+            {STRINGS.TOUR_REPLAY}
+          </button>
+          <span className="hidden sm:block text-sm text-earth">{profile?.full_name}</span>
+          <button type="button" onClick={signOut} className="btn-danger">
             {STRINGS.LOGOUT}
           </button>
         </div>
-      </header>
+      }
+    >
+      <div className="mb-6">
+        <p className="section-label">{STRINGS.ADMIN_DASHBOARD}</p>
+        <h2 className="display-title text-2xl sm:text-3xl mb-1">
+          Welcome back{profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}
+        </h2>
+        <p className="text-earth text-sm max-w-2xl">
+          Monitor field attendance, verify punches, and keep your conservation teams accountable.
+        </p>
+      </div>
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          {adminOptions.map((option) => (
-            <button
-              key={option.path}
-              onClick={() => navigate(option.path)}
-              className="bg-white rounded-lg shadow hover:shadow-lg transition p-6 text-center"
-            >
-              <div className="text-4xl mb-3">{option.icon}</div>
-              <h3 className="text-lg font-bold text-gray-800">{option.title}</h3>
-              <p className="text-sm text-gray-600">{option.description}</p>
-            </button>
+      {overview && (
+        <div className="mb-8">
+          <p className="section-label text-earth mb-3">{STRINGS.TODAY_SNAPSHOT}</p>
+          <KpiStrip
+            items={[
+              {
+                icon: <IconUsers className="w-5 h-5" />,
+                label: STRINGS.ACTIVE_EMPLOYEES,
+                value: overview.employeeCount,
+                sub: `${overview.activeToday} checked in today`,
+              },
+              {
+                icon: <IconClock className="w-5 h-5" />,
+                label: STRINGS.TODAYS_ATTENDANCE,
+                value: `${overview.attendanceRate}%`,
+                sub: `${overview.activeToday} of ${overview.employeeCount} present`,
+              },
+              {
+                icon: <IconMapPin className="w-5 h-5" />,
+                label: STRINGS.SITES,
+                value: overview.siteCount,
+                sub: 'Geofenced locations',
+              },
+              {
+                icon: <IconFlag className="w-5 h-5" />,
+                label: STRINGS.FLAGGED_PUNCHES,
+                value: overview.flaggedCount,
+                sub: 'Awaiting review',
+                valueClass: overview.flaggedCount > 0 ? 'text-red-300' : '',
+              },
+            ]}
+          />
+        </div>
+      )}
+
+      <div>
+        <p className="section-label text-earth mb-3">{STRINGS.QUICK_ACTIONS}</p>
+        <div className="space-y-2">
+          {actions.map((action) => (
+            <ActionRow
+              key={action.path}
+              title={action.title}
+              description={action.description}
+              icon={action.icon}
+              accent={action.accent}
+              badge={action.badge}
+              onClick={() => navigate(action.path)}
+            />
           ))}
         </div>
-      </main>
-    </div>
+      </div>
+
+      {tourOpen && (
+        <AppTour
+          steps={ADMIN_TOUR_STEPS}
+          stepIndex={stepIndex}
+          onNext={() => goNext(ADMIN_TOUR_STEPS.length)}
+          onBack={goBack}
+          onSkip={skipTour}
+          isLastStep={stepIndex === ADMIN_TOUR_STEPS.length - 1}
+        />
+      )}
+    </AppShell>
   )
 }

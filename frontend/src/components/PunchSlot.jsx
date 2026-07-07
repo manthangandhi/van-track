@@ -2,6 +2,7 @@ import React from 'react'
 import { STRINGS } from '../utils/strings'
 import { FlagBadge } from './FlagBadge'
 import { formatTime } from '../utils/helpers'
+import { PunchTypeIcon, IconCheck } from './ui/Icons'
 
 export function PunchSlot({ punch, punchType, onClick, disabled = false }) {
   const labels = {
@@ -10,46 +11,44 @@ export function PunchSlot({ punch, punchType, onClick, disabled = false }) {
     check_out: STRINGS.CHECK_OUT,
   }
 
-  const icons = {
-    check_in: '🔓',
-    midday: '☀️',
-    check_out: '🔒',
-  }
-
   const isDone = punch && punch.status !== 'rejected'
-  const isLoading = false
 
   return (
     <div
       onClick={() => !disabled && onClick()}
-      className={`border-2 rounded-lg p-4 cursor-pointer transition ${
+      className={`card p-5 cursor-pointer transition-all duration-200 ${
         isDone
-          ? 'border-green-500 bg-green-50 hover:bg-green-100'
-          : 'border-gray-300 bg-white hover:bg-gray-50'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+          ? 'border-forest-300 bg-forest-50/80 hover:shadow-card'
+          : 'hover:border-forest-200 hover:shadow-soft'
+      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5'}`}
     >
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-lg font-semibold text-gray-800">
-          {icons[punchType]} {labels[punchType]}
+      <div className="flex items-center justify-between mb-3">
+        <span className="font-display font-semibold text-forest-900 flex items-center gap-2">
+          <PunchTypeIcon type={punchType} className="w-5 h-5 text-forest-600" />
+          {labels[punchType]}
         </span>
-        {isDone && <span className="text-green-600 font-bold">✓</span>}
+        {isDone && (
+          <span className="stat-pill bg-forest-100 text-forest-700 border border-forest-200 flex items-center gap-1">
+            <IconCheck className="w-3.5 h-3.5" />
+            Done
+          </span>
+        )}
       </div>
 
       {punch ? (
         <div className="space-y-2">
-          <p className="text-sm text-gray-600">
-            <strong>{STRINGS.TIME}:</strong> {formatTime(punch.server_timestamp)}
+          <p className="text-sm text-earth">
+            <strong className="text-forest-800">{STRINGS.TIME}:</strong>{' '}
+            {formatTime(punch.server_timestamp)}
           </p>
           {punch.flag_reasons && punch.flag_reasons.length > 0 && (
             <FlagBadge flagReasons={punch.flag_reasons} compact />
           )}
-          <p className="text-xs text-gray-500">{punch.status}</p>
+          <p className="text-xs text-earth capitalize">{punch.status}</p>
         </div>
       ) : (
-        <p className="text-sm text-gray-500">{STRINGS.PENDING}</p>
+        <p className="text-sm text-earth">{STRINGS.PENDING}</p>
       )}
-
-      {isLoading && <p className="text-sm text-blue-600">{STRINGS.UPLOADING}</p>}
     </div>
   )
 }

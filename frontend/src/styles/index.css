@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 @import 'tailwindcss/base';
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
@@ -8,13 +10,87 @@
   box-sizing: border-box;
 }
 
-html, body, #root {
+html {
+  font-size: 16px;
+}
+
+html,
+body,
+#root {
   height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color: #16392f;
+  line-height: 1.55;
+  letter-spacing: -0.011em;
+}
+
+@layer components {
+  .page-shell {
+    @apply min-h-screen bg-cream bg-page-texture;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl border border-forest-100/80 shadow-card;
+  }
+
+  .card-flat {
+    @apply bg-white/90 rounded-2xl border border-forest-100/60 backdrop-blur-sm;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 font-semibold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn px-5 py-2.5 bg-forest-700 text-white hover:bg-forest-800 shadow-soft hover:shadow-card active:scale-[0.98];
+  }
+
+  .btn-secondary {
+    @apply btn px-5 py-2.5 bg-white text-forest-800 border border-forest-200 hover:bg-forest-50 hover:border-forest-300;
+  }
+
+  .btn-danger {
+    @apply btn px-5 py-2.5 bg-red-600 text-white hover:bg-red-700;
+  }
+
+  .btn-ghost {
+    @apply btn px-4 py-2 text-forest-700 hover:bg-forest-50;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-2.5 rounded-xl border border-forest-200/80 bg-white text-forest-900 placeholder:text-earth-light focus:outline-none focus:ring-2 focus:ring-forest-500/25 focus:border-forest-500 transition;
+  }
+
+  .label-field {
+    @apply block text-sm font-medium text-forest-800 mb-1.5;
+  }
+
+  .alert-error {
+    @apply bg-red-50 border border-red-200/80 text-red-800 px-4 py-3 rounded-xl text-sm;
+  }
+
+  .alert-success {
+    @apply bg-forest-50 border border-forest-200/80 text-forest-800 px-4 py-3 rounded-xl text-sm;
+  }
+
+  .alert-warning {
+    @apply bg-amber-50 border border-amber-200/80 text-amber-900 px-4 py-3 rounded-xl text-sm;
+  }
+
+  .display-title {
+    @apply font-semibold tracking-tight text-forest-900;
+  }
+
+  .section-label {
+    @apply text-xs font-medium text-forest-600 mb-1;
+  }
+
+  .stat-pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold;
+  }
 }
 
 /* PWA Support */
@@ -25,28 +101,26 @@ html, body, #root {
   }
 }
 
-/* Prevent zoom on iOS */
 input,
 select,
 textarea {
   font-size: 16px !important;
 }
 
-/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: #f0f7f4;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #888;
+  background: #b8ddd0;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: #86c4ad;
 }

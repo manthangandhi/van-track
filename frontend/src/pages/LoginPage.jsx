@@ -1,13 +1,16 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { allowSignup } from '../config/appConfig'
 import { STRINGS } from '../utils/strings'
 import { validateEmail, validatePassword } from '../utils/validators'
+import { AuthLayout } from '../components/ui/AuthLayout'
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const { signIn, signUp, loading, error } = useAuth()
+  const { signIn, signUp, resetPassword, loading, error, infoMessage, clearMessages } = useAuth()
   const [isSignUp, setIsSignUp] = useState(false)
+  const [showForgot, setShowForgot] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
@@ -15,12 +18,12 @@ export default function LoginPage() {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    clearMessages()
     setValidationErrors({})
 
-    // Validate
     const errors = {}
     if (!validateEmail(email)) errors.email = STRINGS.INVALID_EMAIL
-    if (!validatePassword(password)) errors.password = STRINGS.PASSWORD
+    if (!validatePassword(password)) errors.password = STRINGS.PASSWORD_TOO_SHORT
     if (isSignUp && !fullName.trim()) errors.fullName = STRINGS.REQUIRED
 
     if (Object.keys(errors).length > 0) {
@@ -29,106 +32,160 @@ export default function LoginPage() {
     }
 
     if (isSignUp) {
-      const { error } = await signUp(email, password, fullName)
-      if (!error) {
-        navigate('/dashboard')
-      }
+      const { error: signUpError, needsConfirmation } = await signUp(email, password, fullName)
+      if (!signUpError && !needsConfirmation) navigate('/')
     } else {
-      const { error } = await signIn(email, password)
-      if (!error) {
-        navigate('/dashboard')
-      }
+      const { error: signInError } = await signIn(email, password)
+      if (!signInError) navigate('/')
     }
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-green-600 to-green-800 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-8">
-        <h1 className="text-3xl font-bold text-center text-green-600 mb-2">{STRINGS.APP_NAME}</h1>
-        <p className="text-center text-gray-600 mb-6">{STRINGS.APP_SUBTITLE}</p>
+  async function handleForgotSubmit(e) {
+    e.preventDefault()
+    clearMessages()
+    setValidationErrors({})
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded mb-4 text-sm">
-            {error}
-          </div>
-        )}
+    if (!validateEmail(email)) {
+      setValidationErrors({ email: STRINGS.INVALID_EMAIL })
+      return
+    }
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {isSignUp && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Full Name
-              </label>
-              <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                  validationErrors.fullName ? 'border-red-500' : 'border-gray-300 focus:ring-green-500'
-                }`}
-                placeholder="Your Name"
-              />
-              {validationErrors.fullName && (
-                <p className="text-red-600 text-xs mt-1">{validationErrors.fullName}</p>
-              )}
-            </div>
-          )}
+    const { error: resetError } = await resetPassword(email)
+    if (!resetError) {
+      setShowForgot(false)
+    }
+  }
 
+  if (showForgot) {
+    return (
+      <AuthLayout title={STRINGS.FORGOT_PASSWORD} subtitle={STRINGS.FORGOT_PASSWORD_HINT}>
+        {error && <div className="alert-error mb-4">{error}</div>}
+        {infoMessage && <div className="alert-success mb-4">{infoMessage}</div>}
+
+        <form onSubmit={handleForgotSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">{STRINGS.EMAIL}</label>
+            <label className="label-field">{STRINGS.EMAIL}</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                validationErrors.email ? 'border-red-500' : 'border-gray-300 focus:ring-green-500'
-              }`}
+              className={`input-field ${validationErrors.email ? 'border-red-400' : ''}`}
               placeholder="you@example.com"
             />
             {validationErrors.email && (
               <p className="text-red-600 text-xs mt-1">{validationErrors.email}</p>
             )}
           </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              {STRINGS.PASSWORD}
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                validationErrors.password ? 'border-red-500' : 'border-gray-300 focus:ring-green-500'
-              }`}
-              placeholder="••••••••"
-            />
-            {validationErrors.password && (
-              <p className="text-red-600 text-xs mt-1">{validationErrors.password}</p>
-            )}
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold py-2 rounded-lg transition"
-          >
-            {loading ? STRINGS.LOADING : isSignUp ? STRINGS.SIGN_UP : STRINGS.LOGIN}
+          <button type="submit" disabled={loading} className="btn-primary w-full py-3">
+            {loading ? STRINGS.LOADING : STRINGS.SEND_RESET_LINK}
           </button>
         </form>
 
-        <hr className="my-6" />
-
         <button
+          type="button"
           onClick={() => {
-            setIsSignUp(!isSignUp)
-            setValidationErrors({})
+            setShowForgot(false)
+            clearMessages()
           }}
-          className="w-full text-green-600 hover:text-green-700 font-semibold text-sm"
+          className="btn-ghost w-full mt-4 text-sm"
         >
-          {isSignUp ? `Have account? ${STRINGS.LOGIN}` : `New here? ${STRINGS.SIGN_UP}`}
+          {STRINGS.BACK_TO_LOGIN}
         </button>
-      </div>
-    </div>
+      </AuthLayout>
+    )
+  }
+
+  return (
+    <AuthLayout
+      title={isSignUp ? STRINGS.SIGN_UP : STRINGS.LOGIN}
+      subtitle={STRINGS.APP_SUBTITLE}
+    >
+      {error && <div className="alert-error mb-4">{error}</div>}
+      {infoMessage && <div className="alert-success mb-4">{infoMessage}</div>}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {isSignUp && (
+          <div>
+            <label className="label-field">{STRINGS.FULL_NAME}</label>
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className={`input-field ${validationErrors.fullName ? 'border-red-400' : ''}`}
+              placeholder="Your Name"
+            />
+            {validationErrors.fullName && (
+              <p className="text-red-600 text-xs mt-1">{validationErrors.fullName}</p>
+            )}
+          </div>
+        )}
+
+        <div>
+          <label className="label-field">{STRINGS.EMAIL}</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={`input-field ${validationErrors.email ? 'border-red-400' : ''}`}
+            placeholder="you@example.com"
+          />
+          {validationErrors.email && (
+            <p className="text-red-600 text-xs mt-1">{validationErrors.email}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="label-field">{STRINGS.PASSWORD}</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={`input-field ${validationErrors.password ? 'border-red-400' : ''}`}
+            placeholder="••••••••"
+          />
+          {validationErrors.password && (
+            <p className="text-red-600 text-xs mt-1">{validationErrors.password}</p>
+          )}
+        </div>
+
+        {!isSignUp && (
+          <div className="text-right">
+            <button
+              type="button"
+              onClick={() => {
+                clearMessages()
+                setShowForgot(true)
+              }}
+              className="text-sm text-forest-600 hover:text-forest-800 font-semibold"
+            >
+              {STRINGS.FORGOT_PASSWORD}
+            </button>
+          </div>
+        )}
+
+        <button type="submit" disabled={loading} className="btn-primary w-full py-3">
+          {loading ? STRINGS.LOADING : isSignUp ? STRINGS.SIGN_UP : STRINGS.LOGIN}
+        </button>
+      </form>
+
+      {allowSignup ? (
+        <>
+          <div className="my-6 border-t border-forest-100" />
+          <button
+            type="button"
+            onClick={() => {
+              setIsSignUp(!isSignUp)
+              setValidationErrors({})
+              clearMessages()
+            }}
+            className="btn-ghost w-full text-sm"
+          >
+            {isSignUp ? `Have account? ${STRINGS.LOGIN}` : `New here? ${STRINGS.SIGN_UP}`}
+          </button>
+        </>
+      ) : (
+        <p className="mt-6 text-center text-sm text-earth">{STRINGS.ADMIN_CREATES_ACCOUNTS}</p>
+      )}
+    </AuthLayout>
   )
 }

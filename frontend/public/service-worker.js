@@ -1,9 +1,8 @@
-/// Service Worker for VanHajri
+/// Service Worker for VanTrack
 // Handles offline support, caching, and sync
 
-const CACHE_NAME = 'vanhajri-v1'
-const OFFLINE_URL = '/offline.html'
-const ASSETS_TO_CACHE = ['/offline.html', '/icons/icon-192.png', '/icons/icon-512.png']
+const CACHE_NAME = 'vantrack-v2'
+const ASSETS_TO_CACHE = ['./offline.html', './icons/icon-192.png', './icons/icon-512.png']
 
 // Install event: cache offline assets
 self.addEventListener('install', (event) => {

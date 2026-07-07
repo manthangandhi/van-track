@@ -1,205 +1,299 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../services/supabaseClient'
-import { generateTimesheet, aggregateTimesheetByEmployee, generateCSV, generateXLSX } from '../services/timesheetService'
+import {
+  generateTimesheet,
+  aggregateTimesheetByEmployee,
+  summarizeEmployeeAttendance,
+  generateCSV,
+  generateXLSX,
+} from '../services/timesheetService'
 import { STRINGS } from '../utils/strings'
-import { formatDate } from '../utils/helpers'
+import { formatDate, addDays } from '../utils/helpers'
+import { TimelineView } from '../components/TimelineView'
+import { AppShell } from '../components/ui/AppShell'
+import { IconDownload, IconFilter } from '../components/ui/Icons'
+
+// Simple chevron - add to Icons or inline
+function Chevron({ open }) {
+  return (
+    <svg viewBox="0 0 24 24" className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+const DATE_PRESETS = [
+  { id: '7d', label: '7d', days: 7 },
+  { id: '30d', label: '30d', days: 30 },
+  { id: '90d', label: '90d', days: 90 },
+]
+
+const STATUS_DOT = {
+  full: 'bg-forest-500',
+  half: 'bg-amber-500',
+  short: 'bg-orange-500',
+  absent: 'bg-forest-200',
+  pending: 'bg-sky-400',
+}
 
 export default function AdminTimesheet() {
-  const navigate = useNavigate()
-  const [employees, setEmployees] = useState([])
   const [sites, setSites] = useState([])
-  const [selectedEmployees, setSelectedEmployees] = useState([])
-  const [selectedSites, setSelectedSites] = useState([])
-  const [startDate, setStartDate] = useState(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+  const [startDate, setStartDate] = useState(addDays(new Date(), -30).toISOString().split('T')[0])
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
-  const [timesheet, setTimesheet] = useState([])
+  const [activePreset, setActivePreset] = useState('30d')
+  const [selectedSite, setSelectedSite] = useState('')
+  const [search, setSearch] = useState('')
+  const [rawRecords, setRawRecords] = useState([])
+  const [aggregated, setAggregated] = useState([])
+  const [expandedId, setExpandedId] = useState(null)
+  const [selectedDay, setSelectedDay] = useState(null)
+  const [dayPunches, setDayPunches] = useState([])
   const [loading, setLoading] = useState(false)
 
-  React.useEffect(() => {
-    loadFilters()
+  useEffect(() => {
+    supabase.from('sites').select('id, name').order('name').then(({ data }) => setSites(data || []))
   }, [])
 
-  async function loadFilters() {
-    const { data: empData } = await supabase
-      .from('profiles')
-      .select('id, full_name')
-      .eq('role', 'employee')
-      .eq('is_active', true)
-      .order('full_name')
-
-    const { data: siteData } = await supabase.from('sites').select('id, name').order('name')
-
-    setEmployees(empData || [])
-    setSites(siteData || [])
-  }
-
-  async function handleGenerate() {
+  const loadData = useCallback(async () => {
     setLoading(true)
-    try {
-      const data = await generateTimesheet(
-        selectedEmployees.length > 0 ? selectedEmployees : null,
-        selectedSites.length > 0 ? selectedSites : null,
-        startDate,
-        endDate
-      )
-      const aggregated = aggregateTimesheetByEmployee(data)
-      setTimesheet(aggregated)
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
+    const siteIds = selectedSite ? [selectedSite] : null
+    const data = await generateTimesheet(null, siteIds, startDate, endDate)
+    setRawRecords(data)
+    setAggregated(aggregateTimesheetByEmployee(data))
+    setExpandedId(null)
+    setSelectedDay(null)
+    setDayPunches([])
+    setLoading(false)
+  }, [startDate, endDate, selectedSite])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return aggregated
+    return aggregated.filter((r) => r.fullName?.toLowerCase().includes(q))
+  }, [aggregated, search])
+
+  const totals = useMemo(() => summarizeEmployeeAttendance(rawRecords), [rawRecords])
+
+  function applyPreset(preset) {
+    setActivePreset(preset.id)
+    const end = new Date().toISOString().split('T')[0]
+    setEndDate(end)
+    setStartDate(addDays(new Date(end), -preset.days).toISOString().split('T')[0])
   }
 
-  function handleExportCSV() {
-    const csv = generateCSV(timesheet)
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `timesheet-${startDate}-${endDate}.csv`
-    a.click()
+  async function handleDayClick(day, employeeId) {
+    setSelectedDay(day)
+    const { data } = await supabase
+      .from('punches')
+      .select('*')
+      .eq('employee_id', employeeId)
+      .gte('server_timestamp', `${day.work_date}T00:00:00Z`)
+      .lte('server_timestamp', `${day.work_date}T23:59:59Z`)
+      .order('server_timestamp', { ascending: true })
+    setDayPunches(data || [])
   }
 
-  function handleExportXLSX() {
-    generateXLSX(timesheet, `timesheet-${startDate}-${endDate}.xlsx`)
-  }
+  const employeeDays = useMemo(() => {
+    if (!expandedId) return []
+    return rawRecords
+      .filter((r) => r.employee_id === expandedId)
+      .sort((a, b) => new Date(b.work_date) - new Date(a.work_date))
+  }, [rawRecords, expandedId])
+
+  const expandedEmployee = aggregated.find((r) => r.employeeId === expandedId)
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-green-600">{STRINGS.TIMESHEETS}</h1>
-          <button
-            onClick={() => navigate('/admin')}
-            className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded"
-          >
-            {STRINGS.BACK}
+    <AppShell title={STRINGS.TIMESHEETS} backTo="/admin" maxWidth="max-w-7xl">
+      <p className="text-sm text-earth mb-4 -mt-2">{STRINGS.TIMESHEET_PAGE_HINT}</p>
+
+      {/* Toolbar */}
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3 mb-4 p-3 rounded-xl bg-forest-900 text-white">
+        <div className="flex items-center gap-2 shrink-0">
+          <IconFilter className="w-4 h-4 text-forest-200" />
+          <span className="text-sm font-medium">Period</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {DATE_PRESETS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => applyPreset(p)}
+              className={`px-3 py-1 rounded-md text-xs font-semibold ${
+                activePreset === p.id ? 'bg-white text-forest-900' : 'bg-white/10 hover:bg-white/20'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <input
+          type="date"
+          value={startDate}
+          onChange={(e) => { setStartDate(e.target.value); setActivePreset('custom') }}
+          className="input-field py-1.5 text-sm bg-white/10 border-white/20 text-white max-w-[9rem]"
+        />
+        <span className="text-forest-300 hidden sm:inline">—</span>
+        <input
+          type="date"
+          value={endDate}
+          onChange={(e) => { setEndDate(e.target.value); setActivePreset('custom') }}
+          className="input-field py-1.5 text-sm bg-white/10 border-white/20 text-white max-w-[9rem]"
+        />
+        <select
+          value={selectedSite}
+          onChange={(e) => setSelectedSite(e.target.value)}
+          className="input-field py-1.5 text-sm bg-white/10 border-white/20 text-white lg:ml-auto max-w-[12rem]"
+        >
+          <option value="" className="text-forest-900">{STRINGS.ALL_LOCATIONS}</option>
+          {sites.map((s) => (
+            <option key={s.id} value={s.id} className="text-forest-900">{s.name}</option>
+          ))}
+        </select>
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={STRINGS.SEARCH_EMPLOYEES}
+          className="input-field py-1.5 text-sm bg-white/10 border-white/20 text-white placeholder:text-forest-300 max-w-[14rem]"
+        />
+        <div className="flex gap-2 lg:ml-0">
+          <button type="button" onClick={() => generateXLSX(aggregated, `timesheet-${startDate}-${endDate}.xlsx`)} disabled={!aggregated.length} className="px-3 py-1.5 rounded-md bg-white text-forest-900 text-xs font-semibold flex items-center gap-1 disabled:opacity-40">
+            <IconDownload className="w-3.5 h-3.5" />
+            XLSX
+          </button>
+          <button type="button" onClick={() => { const csv = generateCSV(aggregated); const b = new Blob([csv], { type: 'text/csv' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `timesheet-${startDate}-${endDate}.csv`; a.click() }} disabled={!aggregated.length} className="px-3 py-1.5 rounded-md bg-white/15 hover:bg-white/25 text-xs font-semibold flex items-center gap-1 disabled:opacity-40">
+            <IconDownload className="w-3.5 h-3.5" />
+            CSV
           </button>
         </div>
-      </header>
+      </div>
 
-      <main className="max-w-6xl mx-auto px-4 py-6">
-        {/* Filters */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">{STRINGS.FILTER}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">{STRINGS.FROM}</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">{STRINGS.TO}</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">{STRINGS.EMPLOYEES}</label>
-              <select
-                multiple
-                value={selectedEmployees}
-                onChange={(e) => setSelectedEmployees(Array.from(e.target.selectedOptions, option => option.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-              >
-                {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.full_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">{STRINGS.SITES}</label>
-              <select
-                multiple
-                value={selectedSites}
-                onChange={(e) => setSelectedSites(Array.from(e.target.selectedOptions, option => option.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-              >
-                {sites.map((site) => (
-                  <option key={site.id} value={site.id}>
-                    {site.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <button
-            onClick={handleGenerate}
-            disabled={loading}
-            className="mt-4 px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold rounded"
-          >
-            {loading ? STRINGS.LOADING : STRINGS.GENERATE}
-          </button>
-        </div>
+      {/* Summary pills */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {[
+          { label: STRINGS.TOTAL_HOURS, value: `${totals.totalHours.toFixed(0)}h`, cls: 'bg-forest-900 text-white' },
+          { label: STRINGS.FULL_DAY, value: totals.fullDays, cls: 'bg-forest-100 text-forest-800' },
+          { label: STRINGS.HALF_DAY, value: totals.halfDays, cls: 'bg-amber-100 text-amber-800' },
+          { label: STRINGS.SHORT_DAY, value: totals.shortDays, cls: 'bg-orange-100 text-orange-800' },
+          { label: STRINGS.ABSENT, value: totals.absentDays, cls: 'bg-forest-50 text-earth' },
+          { label: STRINGS.EMPLOYEES, value: filteredRows.length, cls: 'border border-forest-200 text-forest-800' },
+        ].map((pill) => (
+          <span key={pill.label} className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${pill.cls}`}>
+            <span className="text-xs opacity-80">{pill.label}</span>
+            <span className="font-bold">{pill.value}</span>
+          </span>
+        ))}
+      </div>
 
-        {/* Results */}
-        {timesheet.length > 0 && (
-          <div className="space-y-6">
-            {/* Export Buttons */}
-            <div className="flex gap-3">
-              <button
-                onClick={handleExportCSV}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded"
-              >
-                📥 {STRINGS.EXPORT_CSV}
-              </button>
-              <button
-                onClick={handleExportXLSX}
-                className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded"
-              >
-                📥 {STRINGS.EXPORT_XLSX}
-              </button>
-            </div>
-
-            {/* Table */}
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-100 border-b">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-sm font-semibold">{STRINGS.EMPLOYEE}</th>
-                      <th className="px-4 py-2 text-right text-sm font-semibold">{STRINGS.TOTAL_HOURS}</th>
-                      <th className="px-4 py-2 text-center text-sm font-semibold">Full</th>
-                      <th className="px-4 py-2 text-center text-sm font-semibold">Half</th>
-                      <th className="px-4 py-2 text-center text-sm font-semibold">Short</th>
-                      <th className="px-4 py-2 text-center text-sm font-semibold">Absent</th>
+      {/* Payroll ledger table */}
+      <div className="rounded-xl border border-forest-100 bg-white overflow-hidden shadow-soft">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-forest-50 border-b border-forest-100 text-left">
+              <th className="w-8 px-3 py-2" />
+              <th className="px-3 py-2 font-semibold text-forest-900">{STRINGS.EMPLOYEE}</th>
+              <th className="px-3 py-2 font-semibold text-forest-900 text-right">{STRINGS.TOTAL_HOURS}</th>
+              <th className="px-3 py-2 font-semibold text-center text-forest-700">Full</th>
+              <th className="px-3 py-2 font-semibold text-center text-amber-700">Half</th>
+              <th className="px-3 py-2 font-semibold text-center text-orange-700">Short</th>
+              <th className="px-3 py-2 font-semibold text-center text-earth">Absent</th>
+              <th className="px-3 py-2 font-semibold text-center text-earth">No Mid</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-earth">{STRINGS.LOADING}...</td></tr>
+            ) : filteredRows.length === 0 ? (
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-earth">{STRINGS.NO_DATA}</td></tr>
+            ) : (
+              filteredRows.map((row) => {
+                const isOpen = expandedId === row.employeeId
+                return (
+                  <React.Fragment key={row.employeeId}>
+                    <tr
+                      className={`border-b border-forest-50 cursor-pointer transition ${isOpen ? 'bg-forest-50' : 'hover:bg-forest-50/50'}`}
+                      onClick={() => {
+                        setExpandedId(isOpen ? null : row.employeeId)
+                        setSelectedDay(null)
+                        setDayPunches([])
+                      }}
+                    >
+                      <td className="px-3 py-2.5 text-forest-400">
+                        <Chevron open={isOpen} />
+                      </td>
+                      <td className="px-3 py-2.5 font-semibold text-forest-900">{row.fullName}</td>
+                      <td className="px-3 py-2.5 text-right font-bold text-forest-800">{row.totalHours.toFixed(1)}h</td>
+                      <td className="px-3 py-2.5 text-center text-forest-600">{row.fullDays}</td>
+                      <td className="px-3 py-2.5 text-center text-amber-600">{row.halfDays}</td>
+                      <td className="px-3 py-2.5 text-center text-orange-600">{row.shortDays}</td>
+                      <td className="px-3 py-2.5 text-center text-earth">{row.absentDays}</td>
+                      <td className="px-3 py-2.5 text-center text-earth">{row.missingMiddayDays || 0}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {timesheet.map((row) => (
-                      <tr key={row.employeeId} className="border-b hover:bg-gray-50">
-                        <td className="px-4 py-2 text-sm font-semibold">{row.fullName}</td>
-                        <td className="px-4 py-2 text-sm text-right font-bold">{row.totalHours.toFixed(1)}h</td>
-                        <td className="px-4 py-2 text-center text-sm text-green-600">{row.fullDays}</td>
-                        <td className="px-4 py-2 text-center text-sm text-yellow-600">{row.halfDays}</td>
-                        <td className="px-4 py-2 text-center text-sm text-orange-600">{row.shortDays}</td>
-                        <td className="px-4 py-2 text-center text-sm text-gray-600">{row.absentDays}</td>
+                    {isOpen && (
+                      <tr className="bg-cream border-b border-forest-100">
+                        <td colSpan={8} className="px-4 py-4">
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-wide text-earth mb-2">
+                                Daily log — {expandedEmployee?.fullName}
+                              </p>
+                              <div className="max-h-56 overflow-y-auto rounded-lg border border-forest-100 bg-white">
+                                <table className="w-full text-xs">
+                                  <thead className="bg-forest-50 sticky top-0">
+                                    <tr>
+                                      <th className="px-3 py-1.5 text-left">Date</th>
+                                      <th className="px-3 py-1.5 text-center">Status</th>
+                                      <th className="px-3 py-1.5 text-right">Hours</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {employeeDays.map((day) => (
+                                      <tr
+                                        key={day.work_date}
+                                        onClick={(e) => { e.stopPropagation(); handleDayClick(day, row.employeeId) }}
+                                        className={`border-t border-forest-50 cursor-pointer hover:bg-forest-50/60 ${selectedDay?.work_date === day.work_date ? 'bg-forest-100' : ''}`}
+                                      >
+                                        <td className="px-3 py-2">{formatDate(day.work_date)}</td>
+                                        <td className="px-3 py-2 text-center">
+                                          <span className="inline-flex items-center gap-1.5 capitalize">
+                                            <span className={`w-2 h-2 rounded-full ${STATUS_DOT[day.day_status] || STATUS_DOT.pending}`} />
+                                            {day.day_status}
+                                          </span>
+                                        </td>
+                                        <td className="px-3 py-2 text-right font-medium">{(day.hours_worked || 0).toFixed(1)}h</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                            <div className="rounded-lg border border-forest-100 bg-white p-3 min-h-[12rem]">
+                              {selectedDay ? (
+                                <>
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-earth mb-2">
+                                    Punches — {formatDate(selectedDay.work_date)}
+                                  </p>
+                                  <TimelineView punches={dayPunches} />
+                                </>
+                              ) : (
+                                <p className="text-earth text-xs text-center py-10">{STRINGS.SELECT_DAY_HINT}</p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {!loading && timesheet.length === 0 && (
-          <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
-            {STRINGS.NO_DATA}
-          </div>
-        )}
-      </main>
-    </div>
+                    )}
+                  </React.Fragment>
+                )
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </AppShell>
   )
 }

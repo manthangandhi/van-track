@@ -44,9 +44,27 @@ export function formatHours(hours) {
   return `${h}h ${m}m`
 }
 
-export function getDateKey(date) {
+export function getLocalDateKey(date = new Date()) {
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return date
+  }
   if (typeof date === 'string') date = new Date(date)
-  return date.toISOString().split('T')[0]
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+/** @deprecated Prefer getLocalDateKey for calendar-day boundaries */
+export function getDateKey(date) {
+  return getLocalDateKey(date)
+}
+
+export function getDayBoundsISO(dateKey) {
+  const [y, m, d] = dateKey.split('-').map(Number)
+  const start = new Date(y, m - 1, d, 0, 0, 0, 0)
+  const end = new Date(y, m - 1, d, 23, 59, 59, 999)
+  return { start: start.toISOString(), end: end.toISOString() }
 }
 
 export function isToday(date) {

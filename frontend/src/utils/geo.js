@@ -1,6 +1,37 @@
 // Geolocation utilities: Haversine, distance calculations
 
 /**
+ * Round GPS accuracy to integer meters (DB column is INT; Geolocation API returns float)
+ */
+export function normalizeGpsAccuracy(accuracy) {
+  if (accuracy == null || Number.isNaN(Number(accuracy))) return null
+  return Math.round(Number(accuracy))
+}
+
+export function isValidLatitude(latitude) {
+  const value = Number(latitude)
+  return Number.isFinite(value) && value >= -90 && value <= 90
+}
+
+export function isValidLongitude(longitude) {
+  const value = Number(longitude)
+  return Number.isFinite(value) && value >= -180 && value <= 180
+}
+
+/**
+ * Parse "lat, lng" or "lat lng" pasted from maps apps.
+ */
+export function parseCoordinatePair(text) {
+  const cleaned = String(text).trim().replace(/[°'"NSEW]/gi, ' ')
+  const parts = cleaned.split(/[,\s]+/).filter(Boolean).map(Number)
+  if (parts.length < 2 || parts.some(Number.isNaN)) return null
+
+  const [latitude, longitude] = parts
+  if (!isValidLatitude(latitude) || !isValidLongitude(longitude)) return null
+  return { latitude, longitude }
+}
+
+/**
  * Calculate distance between two points using Haversine formula
  * @param {number} lat1 - Latitude of point 1
  * @param {number} lon1 - Longitude of point 1

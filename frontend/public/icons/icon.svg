@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="VanTrack">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b211b"/>
+      <stop offset="50%" stop-color="#1f5645"/>
+      <stop offset="100%" stop-color="#34856a"/>
+    </linearGradient>
+    <linearGradient id="pin" x1="180" y1="100" x2="332" y2="400" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#faf8f5"/>
+      <stop offset="1" stop-color="#dceee6"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="108" fill="url(#bg)"/>
+  <circle cx="256" cy="268" r="108" fill="none" stroke="#dceee6" stroke-width="6" opacity="0.28"/>
+  <path
+    d="M256 108c-22 0-40 18-40 40 0 14 7 26 18 33L148 392c-10 24 8 52 36 52h144c28 0 46-28 36-52L278 181c11-7 18-19 18-33 0-22-18-40-40-40z"
+    fill="url(#pin)"
+  />
+  <path d="M196 248h52l24-58 24 58h52" stroke="#1f5645" stroke-width="16" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M220 308h72" stroke="#276b55" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="256" cy="352" r="22" fill="#1f5645"/>
+</svg>

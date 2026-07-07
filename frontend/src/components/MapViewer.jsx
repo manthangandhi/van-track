@@ -1,17 +1,33 @@
 import React, { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { siteMarkerHtml, punchMarkerHtml } from '../utils/mapMarkers'
 
-export function MapViewer({ latitude, longitude, siteLatitude, siteLongitude, siteRadius, title = 'Location Map' }) {
+function hasCoords(lat, lng) {
+  return lat != null && lng != null && !Number.isNaN(Number(lat)) && !Number.isNaN(Number(lng))
+}
+
+export function MapViewer({
+  latitude,
+  longitude,
+  siteLatitude,
+  siteLongitude,
+  siteRadius,
+  title = 'Location Map',
+  mapClassName = 'h-64',
+}) {
   const mapRef = useRef(null)
   const mapInstance = useRef(null)
+  const layersRef = useRef([])
 
   useEffect(() => {
-    if (!mapRef.current) return
+    if (!mapRef.current || !hasCoords(latitude, longitude)) return
 
-    // Initialize map
+    const lat = Number(latitude)
+    const lng = Number(longitude)
+
     if (!mapInstance.current) {
-      mapInstance.current = L.map(mapRef.current).setView([latitude, longitude], 15)
+      mapInstance.current = L.map(mapRef.current).setView([lat, lng], 15)
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors',
@@ -21,56 +37,63 @@ export function MapViewer({ latitude, longitude, siteLatitude, siteLongitude, si
 
     const map = mapInstance.current
 
-    // Clear existing markers
-    map.eachLayer((layer) => {
-      if (layer instanceof L.Marker || layer instanceof L.Circle) {
-        map.removeLayer(layer)
-      }
-    })
+    layersRef.current.forEach((layer) => map.removeLayer(layer))
+    layersRef.current = []
 
-    // Add punch location marker
-    L.marker([latitude, longitude], {
+    const punchMarker = L.marker([lat, lng], {
       title: 'Punch Location',
       icon: L.divIcon({
         className: 'custom-marker',
-        html: `<div class="bg-blue-500 rounded-full w-6 h-6 border-2 border-white shadow-lg flex items-center justify-center text-white text-xs">📍</div>`,
+        html: punchMarkerHtml(),
       }),
     }).addTo(map)
+    layersRef.current.push(punchMarker)
 
-    // Add site location if provided
-    if (siteLatitude && siteLongitude) {
-      L.marker([siteLatitude, siteLongitude], {
+    if (hasCoords(siteLatitude, siteLongitude)) {
+      const siteLat = Number(siteLatitude)
+      const siteLng = Number(siteLongitude)
+
+      const siteMarker = L.marker([siteLat, siteLng], {
         title: 'Site Location',
         icon: L.divIcon({
           className: 'custom-marker',
-          html: `<div class="bg-green-500 rounded-full w-6 h-6 border-2 border-white shadow-lg flex items-center justify-center text-white text-xs">🌳</div>`,
+          html: siteMarkerHtml(),
         }),
       }).addTo(map)
+      layersRef.current.push(siteMarker)
 
-      // Add geofence circle
       if (siteRadius) {
-        L.circle([siteLatitude, siteLongitude], {
+        const circle = L.circle([siteLat, siteLng], {
           radius: siteRadius,
-          color: '#10b981',
-          fillColor: '#d1fae5',
+          color: '#276b55',
+          fillColor: '#dceee6',
           fillOpacity: 0.2,
           weight: 2,
         }).addTo(map)
+        layersRef.current.push(circle)
+        map.fitBounds(circle.getBounds().extend([lat, lng]), { padding: [50, 50] })
+      } else {
+        const bounds = L.latLngBounds([lat, lng], [siteLat, siteLng])
+        map.fitBounds(bounds, { padding: [50, 50] })
       }
-
-      // Fit bounds
-      const group = new L.featureGroup([
-        L.latLng(latitude, longitude),
-        L.latLng(siteLatitude, siteLongitude),
-      ])
-      map.fitBounds(group.getBounds(), { padding: [50, 50] })
+    } else {
+      map.setView([lat, lng], 15)
     }
   }, [latitude, longitude, siteLatitude, siteLongitude, siteRadius])
+
+  useEffect(() => {
+    return () => {
+      if (mapInstance.current) {
+        mapInstance.current.remove()
+        mapInstance.current = null
+      }
+    }
+  }, [])
 
   return (
     <div className="w-full">
       <h3 className="text-sm font-semibold text-gray-700 mb-2">{title}</h3>
-      <div ref={mapRef} className="w-full h-64 rounded border border-gray-200" />
+      <div ref={mapRef} className={`w-full rounded border border-gray-200 ${mapClassName}`} />
     </div>
   )
 }
