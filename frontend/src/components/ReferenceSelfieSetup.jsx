@@ -24,11 +24,17 @@ export function ReferenceSelfieSetup() {
   const [settings, setSettings] = useState(null)
   const [consentReady, setConsentReady] = useState(false)
 
-  const refreshConsent = useCallback(async () => {
+  const refreshConsent = useCallback(async (profileOverride = null) => {
     const s = await getOrgSettings().catch(() => null)
     setSettings(s)
-    setConsentReady(!needsPrivacyConsent(profile, s))
+    const activeProfile = profileOverride ?? profile
+    setConsentReady(!needsPrivacyConsent(activeProfile, s))
   }, [profile])
+
+  const handleConsentAccepted = useCallback(async () => {
+    const updatedProfile = await refreshProfile()
+    await refreshConsent(updatedProfile)
+  }, [refreshProfile, refreshConsent])
 
   useEffect(() => {
     loadFaceModels().catch(() => {})
@@ -36,7 +42,7 @@ export function ReferenceSelfieSetup() {
   }, [refreshConsent])
 
   if (!consentReady) {
-    return <PrivacyConsent settings={settings} onAccepted={() => refreshProfile().then(refreshConsent)} />
+    return <PrivacyConsent settings={settings} onAccepted={handleConsentAccepted} />
   }
 
   async function openCamera() {

@@ -77,9 +77,11 @@ export function AuthProvider({ children }) {
 
       if (profileError) throw profileError
       setProfile(data)
+      return data
     } catch (err) {
       setProfile(null)
       setError(err.message)
+      return null
     } finally {
       setLoading(false)
     }
@@ -179,9 +181,9 @@ export function AuthProvider({ children }) {
     const {
       data: { user: currentUser },
     } = await supabase.auth.getUser()
-    if (!currentUser?.id) return
+    if (!currentUser?.id) return null
     setLoading(true)
-    await fetchProfile(currentUser.id)
+    return fetchProfile(currentUser.id)
   }
 
   async function signOut() {
