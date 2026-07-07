@@ -42,6 +42,7 @@ export default function AdminTodayView() {
   const [lastUpdated, setLastUpdated] = useState(null)
   const [selectedPunch, setSelectedPunch] = useState(null)
   const [onLeaveIds, setOnLeaveIds] = useState(new Set())
+  const [loadError, setLoadError] = useState(null)
   const initialLoadDone = useRef(false)
 
   const loadTodayData = useCallback(async (silent = false) => {
@@ -51,29 +52,35 @@ export default function AdminTodayView() {
       setRefreshing(true)
     }
 
-    const today = getLocalDateKey()
+    try {
+      const today = getLocalDateKey()
 
-    const { data: empData } = await supabase
-      .from('profiles')
-      .select('*, sites(name)')
-      .eq('role', 'employee')
-      .eq('is_active', true)
+      const { data: empData } = await supabase
+        .from('profiles')
+        .select('*, sites(name)')
+        .eq('role', 'employee')
+        .eq('is_active', true)
 
-    setEmployees(empData || [])
+      setEmployees(empData || [])
 
-    const [statsData, punchData, leaveIds] = await Promise.all([
-      getDailyStats(today),
-      getTodayPunchesByEmployee(today),
-      getApprovedLeaveEmployeeIds(today),
-    ])
+      const [statsData, punchData, leaveIds] = await Promise.all([
+        getDailyStats(today),
+        getTodayPunchesByEmployee(today),
+        getApprovedLeaveEmployeeIds(today),
+      ])
 
-    setStats(statsData)
-    setPunchesByEmployee(punchData)
-    setOnLeaveIds(leaveIds)
-    setLastUpdated(new Date())
-    initialLoadDone.current = true
-    setLoading(false)
-    setRefreshing(false)
+      setStats(statsData)
+      setPunchesByEmployee(punchData)
+      setOnLeaveIds(leaveIds)
+      setLastUpdated(new Date())
+      setLoadError(null)
+      initialLoadDone.current = true
+    } catch (err) {
+      setLoadError(err.message || STRINGS.SERVER_ERROR)
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -117,6 +124,8 @@ export default function AdminTodayView() {
         </button>
       }
     >
+      {loadError && <div className="alert-error mb-4">{loadError}</div>}
+
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <div className="card p-4 text-center">
           <p className="text-2xl font-bold text-forest-600">{stats.checkedInCount || 0}</p>

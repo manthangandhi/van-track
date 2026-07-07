@@ -8,7 +8,7 @@ import {
   generateXLSX,
 } from '../services/timesheetService'
 import { STRINGS } from '../utils/strings'
-import { formatDate, addDays } from '../utils/helpers'
+import { formatDate, addDays, getDayBoundsISO } from '../utils/helpers'
 import { TimelineView } from '../components/TimelineView'
 import { AppShell } from '../components/ui/AppShell'
 import { IconDownload, IconFilter } from '../components/ui/Icons'
@@ -51,6 +51,7 @@ export default function AdminTimesheet() {
   const [selectedDay, setSelectedDay] = useState(null)
   const [dayPunches, setDayPunches] = useState([])
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState(null)
 
   useEffect(() => {
     supabase.from('sites').select('id, name').order('name').then(({ data }) => setSites(data || []))
@@ -58,14 +59,22 @@ export default function AdminTimesheet() {
 
   const loadData = useCallback(async () => {
     setLoading(true)
-    const siteIds = selectedSite ? [selectedSite] : null
-    const data = await generateTimesheet(null, siteIds, startDate, endDate)
-    setRawRecords(data)
-    setAggregated(aggregateTimesheetByEmployee(data))
-    setExpandedId(null)
-    setSelectedDay(null)
-    setDayPunches([])
-    setLoading(false)
+    try {
+      const siteIds = selectedSite ? [selectedSite] : null
+      const data = await generateTimesheet(null, siteIds, startDate, endDate)
+      setRawRecords(data)
+      setAggregated(aggregateTimesheetByEmployee(data))
+      setExpandedId(null)
+      setSelectedDay(null)
+      setDayPunches([])
+      setLoadError(null)
+    } catch (err) {
+      setRawRecords([])
+      setAggregated([])
+      setLoadError(err.message || STRINGS.SERVER_ERROR)
+    } finally {
+      setLoading(false)
+    }
   }, [startDate, endDate, selectedSite])
 
   useEffect(() => {
@@ -89,12 +98,13 @@ export default function AdminTimesheet() {
 
   async function handleDayClick(day, employeeId) {
     setSelectedDay(day)
+    const { start, end } = getDayBoundsISO(day.work_date)
     const { data } = await supabase
       .from('punches')
       .select('*')
       .eq('employee_id', employeeId)
-      .gte('server_timestamp', `${day.work_date}T00:00:00Z`)
-      .lte('server_timestamp', `${day.work_date}T23:59:59Z`)
+      .gte('server_timestamp', start)
+      .lte('server_timestamp', end)
       .order('server_timestamp', { ascending: true })
     setDayPunches(data || [])
   }
@@ -111,6 +121,7 @@ export default function AdminTimesheet() {
   return (
     <AppShell title={STRINGS.TIMESHEETS} backTo="/admin" maxWidth="max-w-7xl">
       <p className="text-sm text-earth mb-4 -mt-2">{STRINGS.TIMESHEET_PAGE_HINT}</p>
+      {loadError && <div className="alert-error mb-4">{loadError}</div>}
 
       {/* Toolbar */}
       <div className="flex flex-col lg:flex-row lg:items-center gap-3 mb-4 p-3 rounded-xl bg-forest-900 text-white">

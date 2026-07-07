@@ -5,7 +5,7 @@ import { useGPS } from '../hooks/useGPS'
 import { usePermissions } from '../hooks/usePermissions'
 import { usePunch } from '../hooks/usePunch'
 import { useOfflineSync } from '../hooks/useOfflineSync'
-import { getPunchesForDay } from '../services/punchService'
+import { getTodayPunchesIncludingQueued } from '../services/punchService'
 import { loadFaceModels } from '../services/faceService'
 import { PunchCamera } from '../components/PunchCamera'
 import { GPSDisplay } from '../components/GPSDisplay'
@@ -38,7 +38,7 @@ export default function EmployeeDashboard() {
   const { location, loading: gpsLoading, requestLocation, error: gpsError } = useGPS()
   const { cameraPermission, requestCameraPermission } = usePermissions()
   const { recordPunch } = usePunch()
-  const { isSyncing } = useOfflineSync(user?.id)
+  const { isSyncing, syncError } = useOfflineSync(user?.id)
   const { isOpen: tourOpen, stepIndex, skipTour, replayTour, goNext, goBack } = useAppTour(
     user?.id,
     'employee'
@@ -78,7 +78,9 @@ export default function EmployeeDashboard() {
     if (user && profile) {
       loadTodayPunches()
       loadActiveAssignments()
-      isOnApprovedLeave(user.id, getLocalDateKey()).then(setOnLeaveToday)
+      isOnApprovedLeave(user.id, getLocalDateKey())
+        .then(setOnLeaveToday)
+        .catch(() => setOnLeaveToday(true))
     }
   }, [user, profile])
 
@@ -117,7 +119,7 @@ export default function EmployeeDashboard() {
 
   async function loadTodayPunches() {
     const today = getLocalDateKey()
-    const data = await getPunchesForDay(user.id, today)
+    const data = await getTodayPunchesIncludingQueued(user.id, today)
     setPunches(data)
     setPunchesLoaded(true)
   }
@@ -261,6 +263,7 @@ export default function EmployeeDashboard() {
       <OfflineIndicator />
 
       {error && <div className="alert-error mb-4">{error}</div>}
+      {syncError && <div className="alert-error mb-4">{syncError}</div>}
       {info && <div className="alert-success mb-4">{info}</div>}
       {assignmentsError && <div className="alert-error mb-4">{assignmentsError}</div>}
       {onLeaveToday && <div className="alert-success mb-4">{STRINGS.ON_LEAVE_TODAY}</div>}

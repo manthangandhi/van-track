@@ -26,7 +26,7 @@ export function PunchDetailModal({ punch, onClose }) {
 
   if (!punch) return null
 
-  const site = punch.profiles?.sites
+  const site = punch.sites || punch.profiles?.sites
   const punchLabels = {
     check_in: STRINGS.CHECK_IN,
     midday: STRINGS.MIDDAY,

@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient'
 import { haversineDistance, normalizeGpsAccuracy } from '../utils/geo'
 import { getLocalDateKey, getDayBoundsISO } from '../utils/helpers'
+import { getSyncQueue } from './offlineStore'
 import { blocksDuplicatePunch } from '../utils/punchHelpers'
 
 const PHOTO_BUCKET = 'punch-photos'
@@ -245,6 +246,45 @@ export async function updatePunchStatus(punchId, status, comment = '') {
 }
 
 /**
+ * Queued offline punches for a calendar day (not yet synced to server).
+ */
+export async function getQueuedPunchesForDay(employeeId, dateKey = getLocalDateKey()) {
+  const queue = await getSyncQueue()
+  return queue.filter(
+    (item) =>
+      item.type === 'punch' &&
+      item.employeeId === employeeId &&
+      item.deviceTimestamp &&
+      getLocalDateKey(item.deviceTimestamp) === dateKey
+  )
+}
+
+/** Merge server punches with queued offline punches for dashboard display. */
+export async function getTodayPunchesIncludingQueued(employeeId, dateKey = getLocalDateKey()) {
+  const [serverPunches, queued] = await Promise.all([
+    getPunchesForDay(employeeId, dateKey),
+    getQueuedPunchesForDay(employeeId, dateKey),
+  ])
+
+  const queuedTypes = new Set(queued.map((item) => item.punchType))
+  const merged = serverPunches.filter((punch) => !queuedTypes.has(punch.punch_type))
+
+  for (const item of queued) {
+    merged.push({
+      id: `queued-${item.id}`,
+      punch_type: item.punchType,
+      status: 'pending',
+      server_timestamp: item.deviceTimestamp,
+      offline: true,
+    })
+  }
+
+  return merged.sort(
+    (a, b) => new Date(a.server_timestamp).getTime() - new Date(b.server_timestamp).getTime()
+  )
+}
+
+/**
  * Check if employee already has a punch of a certain type today
  * @param {string} employeeId - Employee UUID
  * @param {string} punchType - Punch type to check
@@ -252,8 +292,16 @@ export async function updatePunchStatus(punchId, status, comment = '') {
  */
 export async function hasPunchToday(employeeId, punchType) {
   const today = getLocalDateKey()
-  const punches = await getPunchesForDay(employeeId, today)
-  return punches.some((p) => p.punch_type === punchType && blocksDuplicatePunch(p))
+  const [punches, queued] = await Promise.all([
+    getPunchesForDay(employeeId, today),
+    getQueuedPunchesForDay(employeeId, today),
+  ])
+
+  if (punches.some((p) => p.punch_type === punchType && blocksDuplicatePunch(p))) {
+    return true
+  }
+
+  return queued.some((item) => item.punchType === punchType)
 }
 
 /**

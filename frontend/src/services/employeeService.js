@@ -1,7 +1,7 @@
 import { supabase } from './supabaseClient'
 import { STRINGS } from '../utils/strings'
 
-function formatCreateEmployeeError(error) {
+export function formatCreateEmployeeError(error) {
   const message = (error?.message || '').toLowerCase()
   if (
     message.includes('not found') ||
@@ -12,6 +12,18 @@ function formatCreateEmployeeError(error) {
     return STRINGS.CREATE_EMPLOYEE_FUNCTION_MISSING
   }
   return error?.message || STRINGS.SERVER_ERROR
+}
+
+export async function parseCreateEmployeeError(error) {
+  if (error?.context?.json) {
+    try {
+      const body = await error.context.json()
+      if (body?.error) return body.error
+    } catch {
+      // fall through to generic formatter
+    }
+  }
+  return formatCreateEmployeeError(error)
 }
 
 /**
@@ -39,11 +51,15 @@ export async function createEmployee({
   })
 
   if (error) {
-    throw new Error(formatCreateEmployeeError(error))
+    throw new Error(await parseCreateEmployeeError(error))
   }
 
   if (data?.error) {
     throw new Error(data.error)
+  }
+
+  if (!data?.user) {
+    throw new Error(STRINGS.SERVER_ERROR)
   }
 
   return data.user

@@ -177,7 +177,7 @@ export async function filterRecordsBySiteAssignment(records, siteIds) {
 
   if (error) {
     console.error('Assignment filter error:', error)
-    return records
+    throw error
   }
 
   if (!assignments?.length) return []

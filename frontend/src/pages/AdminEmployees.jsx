@@ -38,6 +38,7 @@ export default function AdminEmployees() {
   const [editingId, setEditingId] = useState(null)
   const [isCreating, setIsCreating] = useState(false)
   const [formError, setFormError] = useState(null)
+  const [pageError, setPageError] = useState(null)
   const [referencePreview, setReferencePreview] = useState(null)
   const [pendingSelfiePath, setPendingSelfiePath] = useState(null)
   const [pendingFaceDescriptor, setPendingFaceDescriptor] = useState(null)
@@ -171,14 +172,23 @@ export default function AdminEmployees() {
           mandatory_daily_hours: formData.mandatory_daily_hours,
           is_active: formData.is_active,
         })
-        if (formData.assigned_site_id && newUser?.id) {
+        if (formData.assigned_site_id && newUser.id) {
           const today = getLocalDateKey()
-          await createSiteAssignment({
-            employeeId: newUser.id,
-            siteId: formData.assigned_site_id,
-            startDate: today,
-            syncProfileSite: false,
-          })
+          try {
+            await createSiteAssignment({
+              employeeId: newUser.id,
+              siteId: formData.assigned_site_id,
+              startDate: today,
+              syncProfileSite: false,
+            })
+          } catch (assignErr) {
+            await loadData()
+            closeForm()
+            setPageError(
+              `${STRINGS.CREATE_EMPLOYEE_ASSIGNMENT_FAILED} (${assignErr.message || STRINGS.SERVER_ERROR})`
+            )
+            return
+          }
         }
       } else {
         const updates = {
@@ -243,6 +253,7 @@ export default function AdminEmployees() {
     setPendingFaceDescriptor(null)
     setFormData(emptyForm)
     setFormError(null)
+    setPageError(null)
   }
 
   async function setEmployeeActive(empId, isActive) {
@@ -271,6 +282,7 @@ export default function AdminEmployees() {
       }
     >
       <p className="mb-4 text-sm text-earth">{STRINGS.ENROLLMENT_HINT}</p>
+      {pageError && <div className="alert-error mb-4">{pageError}</div>}
 
       {showForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

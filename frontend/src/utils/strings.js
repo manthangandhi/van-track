@@ -182,6 +182,8 @@ export const STRINGS = {
   SERVER_ERROR: 'Server error. Please try again later.',
   CREATE_EMPLOYEE_FUNCTION_MISSING:
     'Employee creation service is not deployed. Deploy the create-employee Supabase Edge Function (see supabase/README.md).',
+  CREATE_EMPLOYEE_ASSIGNMENT_FAILED:
+    'Employee account was created, but site assignment failed. Open the employee and assign a site manually.',
   NOT_FOUND: 'Not found',
   UNAUTHORIZED: 'Unauthorized. Please login.',
   FORBIDDEN: 'Forbidden. You do not have permission.',
