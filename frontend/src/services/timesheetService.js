@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient'
+import { enrichAttendanceRecords } from './workforceService'
 
 /**
  * Compute attendance days for an employee over a date range
@@ -28,6 +29,8 @@ export async function getAttendanceDays(employeeId, startDate, endDate, options 
   if (siteId) {
     records = await filterRecordsBySiteAssignment(records, [siteId])
   }
+
+  records = await enrichAttendanceRecords(records, employeeId, siteId)
 
   if (status) {
     records = records.filter((r) => r.day_status === status)
@@ -60,6 +63,12 @@ export function summarizeEmployeeAttendance(records) {
         case 'pending':
           acc.pendingDays += 1
           break
+        case 'on_leave':
+          acc.leaveDays += 1
+          break
+        case 'holiday':
+          acc.holidayDays += 1
+          break
         default:
           break
       }
@@ -77,6 +86,8 @@ export function summarizeEmployeeAttendance(records) {
       absentDays: 0,
       pendingDays: 0,
       missingMidday: 0,
+      leaveDays: 0,
+      holidayDays: 0,
     }
   )
 }
@@ -128,11 +139,26 @@ export async function generateTimesheet(employeeIds, siteIds, startDate, endDate
     return []
   }
 
+  let records = data || []
+
   if (siteIds && siteIds.length > 0) {
-    return await filterRecordsBySiteAssignment(data, siteIds)
+    records = await filterRecordsBySiteAssignment(records, siteIds)
   }
 
-  return data
+  if (records.length) {
+    const byEmployee = {}
+    for (const row of records) {
+      if (!byEmployee[row.employee_id]) byEmployee[row.employee_id] = []
+      byEmployee[row.employee_id].push(row)
+    }
+    const enriched = []
+    for (const [empId, rows] of Object.entries(byEmployee)) {
+      enriched.push(...(await enrichAttendanceRecords(rows, empId, siteIds?.[0] || null)))
+    }
+    return enriched.sort((a, b) => a.work_date.localeCompare(b.work_date))
+  }
+
+  return records
 }
 
 export async function filterRecordsBySiteAssignment(records, siteIds) {
@@ -190,6 +216,8 @@ export function aggregateTimesheetByEmployee(timesheetData) {
         absentDays: 0,
         pendingDays: 0,
         missingMiddayDays: 0,
+        leaveDays: 0,
+        holidayDays: 0,
         records: [],
       }
     }
@@ -217,6 +245,12 @@ export function aggregateTimesheetByEmployee(timesheetData) {
         break
       case 'pending':
         aggregated[empId].pendingDays += 1
+        break
+      case 'on_leave':
+        aggregated[empId].leaveDays += 1
+        break
+      case 'holiday':
+        aggregated[empId].holidayDays += 1
         break
       default:
         break
@@ -278,6 +312,8 @@ export function generateCSV(timesheetData) {
     'Half Days',
     'Short Days',
     'Absent Days',
+    'Leave Days',
+    'Holiday Days',
     'Missing Midday Days',
   ]
 
@@ -294,6 +330,8 @@ export function generateCSV(timesheetData) {
       emp.halfDays,
       emp.shortDays,
       emp.absentDays,
+      emp.leaveDays || 0,
+      emp.holidayDays || 0,
       emp.missingMiddayDays || 0,
     ]
     csv += row.join(',') + '\n'
@@ -320,6 +358,8 @@ export async function generateXLSX(timesheetData, fileName = 'timesheet.xlsx') {
     'Half Days': emp.halfDays,
     'Short Days': emp.shortDays,
     'Absent Days': emp.absentDays,
+    'Leave Days': emp.leaveDays || 0,
+    'Holiday Days': emp.holidayDays || 0,
     'Missing Midday Days': emp.missingMiddayDays || 0,
   }))
 

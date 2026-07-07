@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { allowSignup } from '../config/appConfig'
 import { STRINGS } from '../utils/strings'
@@ -186,6 +186,12 @@ export default function LoginPage() {
       ) : (
         <p className="mt-6 text-center text-sm text-earth">{STRINGS.ADMIN_CREATES_ACCOUNTS}</p>
       )}
+
+      <p className="mt-4 text-center text-xs text-earth">
+        <Link to="/privacy" className="text-forest-600 font-semibold underline">
+          {STRINGS.PRIVACY_POLICY}
+        </Link>
+      </p>
     </AuthLayout>
   )
 }

@@ -1,6 +1,6 @@
-# Quick Start Guide — VanHajri
+# Quick Start Guide — VanTrack
 
-Get VanHajri running locally in 15 minutes.
+Get VanTrack running locally in 15 minutes.
 
 ## Step 1: Supabase Setup (5 min)
 
@@ -17,9 +17,9 @@ Get VanHajri running locally in 15 minutes.
 # 4. Go to Storage → Create bucket "punch-photos" (PRIVATE)
 
 # 5. Go to Authentication → Users → Add:
-#    - admin@vanhajri.test / AdminPass123!
-#    - raj@vanhajri.test / EmpPass123!
-#    - priya@vanhajri.test / EmpPass123!
+#    - admin@vantrack.test / AdminPass123!
+#    - raj@vantrack.test / EmpPass123!
+#    - priya@vantrack.test / EmpPass123!
 
 # 6. Run seed script: supabase/seed.sql (to create profiles & sites)
 
@@ -48,12 +48,12 @@ npm run dev
 ## Step 3: Test (5 min)
 
 ### Admin Flow
-1. Login: `admin@vanhajri.test` / `AdminPass123!`
+1. Login: `admin@vantrack.test` / `AdminPass123!`
 2. → Admin Dashboard
 3. Explore: Today View, Employees, Sites, Timesheet
 
 ### Employee Flow
-1. Logout → Login: `raj@vanhajri.test` / `EmpPass123!`
+1. Logout → Login: `raj@vantrack.test` / `EmpPass123!`
 2. → Dashboard (3 punch slots)
 3. Tap "Check In" → Camera opens → Capture selfie → GPS requested → Punch recorded ✓
 4. Tap History → View past attendance
@@ -156,4 +156,4 @@ docs/
 
 ---
 
-**VanHajri** is ready to go. Build with ❤️ for forest workers. Zero cost, zero vendor lock-in.
+**VanTrack** is ready to go. Build with ❤️ for forest workers. Zero cost, zero vendor lock-in.

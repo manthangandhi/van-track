@@ -34,6 +34,8 @@ const STATUS_DOT = {
   short: 'bg-orange-500',
   absent: 'bg-forest-200',
   pending: 'bg-sky-400',
+  on_leave: 'bg-violet-500',
+  holiday: 'bg-forest-400',
 }
 
 export default function AdminTimesheet() {
@@ -180,6 +182,8 @@ export default function AdminTimesheet() {
           { label: STRINGS.HALF_DAY, value: totals.halfDays, cls: 'bg-amber-100 text-amber-800' },
           { label: STRINGS.SHORT_DAY, value: totals.shortDays, cls: 'bg-orange-100 text-orange-800' },
           { label: STRINGS.ABSENT, value: totals.absentDays, cls: 'bg-forest-50 text-earth' },
+          { label: STRINGS.ON_LEAVE, value: totals.leaveDays, cls: 'bg-violet-100 text-violet-800' },
+          { label: STRINGS.HOLIDAY, value: totals.holidayDays, cls: 'bg-forest-100 text-forest-700' },
           { label: STRINGS.EMPLOYEES, value: filteredRows.length, cls: 'border border-forest-200 text-forest-800' },
         ].map((pill) => (
           <span key={pill.label} className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${pill.cls}`}>
@@ -201,14 +205,16 @@ export default function AdminTimesheet() {
               <th className="px-3 py-2 font-semibold text-center text-amber-700">Half</th>
               <th className="px-3 py-2 font-semibold text-center text-orange-700">Short</th>
               <th className="px-3 py-2 font-semibold text-center text-earth">Absent</th>
+              <th className="px-3 py-2 font-semibold text-center text-violet-700">{STRINGS.ON_LEAVE}</th>
+              <th className="px-3 py-2 font-semibold text-center text-forest-700">{STRINGS.HOLIDAY}</th>
               <th className="px-3 py-2 font-semibold text-center text-earth">No Mid</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="px-4 py-10 text-center text-earth">{STRINGS.LOADING}...</td></tr>
+              <tr><td colSpan={10} className="px-4 py-10 text-center text-earth">{STRINGS.LOADING}...</td></tr>
             ) : filteredRows.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-10 text-center text-earth">{STRINGS.NO_DATA}</td></tr>
+              <tr><td colSpan={10} className="px-4 py-10 text-center text-earth">{STRINGS.NO_DATA}</td></tr>
             ) : (
               filteredRows.map((row) => {
                 const isOpen = expandedId === row.employeeId
@@ -231,11 +237,13 @@ export default function AdminTimesheet() {
                       <td className="px-3 py-2.5 text-center text-amber-600">{row.halfDays}</td>
                       <td className="px-3 py-2.5 text-center text-orange-600">{row.shortDays}</td>
                       <td className="px-3 py-2.5 text-center text-earth">{row.absentDays}</td>
+                      <td className="px-3 py-2.5 text-center text-violet-600">{row.leaveDays || 0}</td>
+                      <td className="px-3 py-2.5 text-center text-forest-600">{row.holidayDays || 0}</td>
                       <td className="px-3 py-2.5 text-center text-earth">{row.missingMiddayDays || 0}</td>
                     </tr>
                     {isOpen && (
                       <tr className="bg-cream border-b border-forest-100">
-                        <td colSpan={8} className="px-4 py-4">
+                        <td colSpan={10} className="px-4 py-4">
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             <div>
                               <p className="text-xs font-semibold uppercase tracking-wide text-earth mb-2">

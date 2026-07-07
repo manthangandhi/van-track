@@ -22,6 +22,7 @@ import { blocksDuplicatePunch, hasValidCheckIn } from '../utils/punchHelpers'
 import { AppTour } from '../components/AppTour'
 import { useAppTour } from '../hooks/useAppTour'
 import { EMPLOYEE_TOUR_STEPS } from '../config/tourSteps'
+import { isOnApprovedLeave } from '../services/workforceService'
 
 const PUNCH_LABELS = {
   check_in: STRINGS.CHECK_IN,
@@ -52,6 +53,7 @@ export default function EmployeeDashboard() {
   const [info, setInfo] = useState(null)
   const [activeAssignments, setActiveAssignments] = useState([])
   const [assignmentsError, setAssignmentsError] = useState(null)
+  const [onLeaveToday, setOnLeaveToday] = useState(false)
 
   const hasReferenceSelfie = Boolean(
     profile?.reference_selfie_url &&
@@ -65,6 +67,7 @@ export default function EmployeeDashboard() {
     hasReferenceSelfie &&
     hasActiveAssignment &&
     !assignmentsError &&
+    !onLeaveToday &&
     punchesLoaded
 
   useEffect(() => {
@@ -75,6 +78,7 @@ export default function EmployeeDashboard() {
     if (user && profile) {
       loadTodayPunches()
       loadActiveAssignments()
+      isOnApprovedLeave(user.id, getLocalDateKey()).then(setOnLeaveToday)
     }
   }, [user, profile])
 
@@ -259,6 +263,7 @@ export default function EmployeeDashboard() {
       {error && <div className="alert-error mb-4">{error}</div>}
       {info && <div className="alert-success mb-4">{info}</div>}
       {assignmentsError && <div className="alert-error mb-4">{assignmentsError}</div>}
+      {onLeaveToday && <div className="alert-success mb-4">{STRINGS.ON_LEAVE_TODAY}</div>}
 
       <div className="card p-5 mb-6">
         <p className="section-label">{STRINGS.TODAY_STATUS}</p>

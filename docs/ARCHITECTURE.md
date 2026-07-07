@@ -1,6 +1,6 @@
-# VanHajri System Architecture
+# VanTrack System Architecture
 
-High-level overview of VanHajri's architecture, data flow, and deployment model.
+High-level overview of VanTrack's architecture, data flow, and deployment model.
 
 ## System Diagram
 
@@ -197,7 +197,7 @@ Deploy: dist/ folder to CDN
   ↓
 Set environment variables (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
   ↓
-https://vanhajri.vercel.app (or Netlify domain)
+https://vantrack.vercel.app (or Netlify domain)
 ```
 
 ### Self-Hosted Option

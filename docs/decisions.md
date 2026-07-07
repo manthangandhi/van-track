@@ -1,6 +1,6 @@
 # Architecture & Design Decisions
 
-VanHajri is built on free-tier technologies: React (Vite), Supabase, OpenStreetMap, SheetJS. This document outlines architectural choices and known constraints.
+VanTrack is built on free-tier technologies: React (Vite), Supabase, OpenStreetMap, SheetJS. This document outlines architectural choices and known constraints.
 
 ## Technology Choices
 

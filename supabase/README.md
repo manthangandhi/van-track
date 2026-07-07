@@ -1,6 +1,6 @@
 # Supabase Setup Guide
 
-Complete steps to set up VanHajri database on Supabase free tier.
+Complete steps to set up VanTrack database on Supabase free tier.
 
 ## 1. Create Supabase Project
 
@@ -70,10 +70,10 @@ Add these policies:
 
 1. Go to **Authentication** → **Users**
 2. Click **Add user** (or **Invite**)
-3. Email: `admin@vanhajri.test`, Password: `AdminPass123!`
+3. Email: `admin@vantrack.test`, Password: `AdminPass123!`
 4. Repeat for:
-   - `raj@vanhajri.test` (Employee)
-   - `priya@vanhajri.test` (Employee)
+   - `raj@vantrack.test` (Employee)
+   - `priya@vantrack.test` (Employee)
 
 After users are created, run **seed.sql** to populate profiles/sites/permissions.
 
@@ -131,7 +131,7 @@ All three should return results ✅
 ## 10. Test Auth Flow
 
 1. Navigate to frontend (http://localhost:5173 or deployed URL)
-2. Try login: `admin@vanhajri.test` / `AdminPass123!`
+2. Try login: `admin@vantrack.test` / `AdminPass123!`
 3. Should redirect to admin dashboard
 4. Try logout → login with employee account
 

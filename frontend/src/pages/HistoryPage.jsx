@@ -16,6 +16,8 @@ import {
   generateAssignmentCSV,
   assignmentStatus,
 } from '../services/siteAssignmentService'
+import { LeaveRequestPanel } from '../components/LeaveRequestPanel'
+import { PrivacyPanel } from '../components/PrivacyPanel'
 
 const DATE_PRESETS = [
   { id: '7d', label: '7 days', days: 7 },
@@ -30,6 +32,8 @@ const STATUS_OPTIONS = [
   { value: 'short', label: STRINGS.SHORT_DAY },
   { value: 'absent', label: STRINGS.ABSENT },
   { value: 'pending', label: STRINGS.PENDING },
+  { value: 'on_leave', label: STRINGS.ON_LEAVE },
+  { value: 'holiday', label: STRINGS.HOLIDAY },
 ]
 
 const dayStatusColors = {
@@ -38,6 +42,8 @@ const dayStatusColors = {
   short: 'bg-orange-50 border-orange-200 text-orange-800',
   absent: 'bg-forest-50 border-forest-200 text-earth',
   pending: 'bg-sky-50 border-sky-200 text-sky-800',
+  on_leave: 'bg-violet-50 border-violet-200 text-violet-800',
+  holiday: 'bg-forest-50 border-forest-200 text-forest-600',
 }
 
 function StatCard({ label, value, accent = 'text-forest-700' }) {
@@ -173,6 +179,8 @@ export default function HistoryPage() {
         {[
           { id: 'attendance', label: STRINGS.ATTENDANCE_TAB },
           { id: 'assignments', label: STRINGS.ASSIGNMENTS_TAB },
+          { id: 'leave', label: STRINGS.LEAVE_TAB },
+          { id: 'privacy', label: STRINGS.PRIVACY_TAB },
         ].map((t) => (
           <button
             key={t.id}
@@ -379,6 +387,10 @@ export default function HistoryPage() {
       </div>
       </>
       )}
+
+      {tab === 'leave' && user && <LeaveRequestPanel employeeId={user.id} />}
+
+      {tab === 'privacy' && user && <PrivacyPanel employeeId={user.id} />}
 
       {tab === 'assignments' && (
         <>

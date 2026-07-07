@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { loadFaceModels } from '../services/faceService'
 import { useAuth } from '../hooks/useAuth'
 import { useGPS } from '../hooks/useGPS'
@@ -11,6 +11,8 @@ import { saveEmployeeReferenceSelfie } from '../services/punchService'
 import { stampImageWithMetadata, compressImage } from '../services/imageService'
 import { extractFaceDescriptor } from '../services/faceService'
 import { STRINGS } from '../utils/strings'
+import { PrivacyConsent } from './PrivacyConsent'
+import { getOrgSettings, needsPrivacyConsent } from '../services/privacyService'
 
 export function ReferenceSelfieSetup() {
   const { user, profile, refreshProfile } = useAuth()
@@ -19,10 +21,23 @@ export function ReferenceSelfieSetup() {
   const [showCamera, setShowCamera] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [settings, setSettings] = useState(null)
+  const [consentReady, setConsentReady] = useState(false)
+
+  const refreshConsent = useCallback(async () => {
+    const s = await getOrgSettings().catch(() => null)
+    setSettings(s)
+    setConsentReady(!needsPrivacyConsent(profile, s))
+  }, [profile])
 
   useEffect(() => {
     loadFaceModels().catch(() => {})
-  }, [])
+    refreshConsent()
+  }, [refreshConsent])
+
+  if (!consentReady) {
+    return <PrivacyConsent settings={settings} onAccepted={() => refreshProfile().then(refreshConsent)} />
+  }
 
   async function openCamera() {
     setError(null)

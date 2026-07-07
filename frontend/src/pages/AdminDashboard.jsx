@@ -57,6 +57,27 @@ export default function AdminDashboard() {
       accent: 'teal',
     },
     {
+      title: STRINGS.WORKFORCE,
+      icon: <IconClock className="w-5 h-5" />,
+      path: '/admin/workforce',
+      description: 'Leave requests and public holidays',
+      accent: 'slate',
+    },
+    {
+      title: STRINGS.AUDIT_LOG,
+      icon: <IconClipboard className="w-5 h-5" />,
+      path: '/admin/audit',
+      description: 'Full activity log — employees, sites, punches, leave',
+      accent: 'earth',
+    },
+    {
+      title: STRINGS.PRIVACY_COMPLIANCE,
+      icon: <IconMapPin className="w-5 h-5" />,
+      path: '/admin/privacy',
+      description: 'Consent, retention, erasure requests, legal hold',
+      accent: 'teal',
+    },
+    {
       title: STRINGS.TIMESHEETS,
       icon: <IconClipboard className="w-5 h-5" />,
       path: '/admin/timesheet',

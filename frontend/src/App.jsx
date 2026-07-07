@@ -12,6 +12,10 @@ import AdminSites from './pages/AdminSites'
 import AdminTimesheet from './pages/AdminTimesheet'
 import AdminInsights from './pages/AdminInsights'
 import AdminAssignments from './pages/AdminAssignments'
+import AdminWorkforce from './pages/AdminWorkforce'
+import AdminAudit from './pages/AdminAudit'
+import AdminPrivacy from './pages/AdminPrivacy'
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import NotFound from './pages/NotFound'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import ProfileError from './components/ProfileError'
@@ -76,6 +80,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<HomeRoute />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
 
           <Route
             path="/dashboard"
@@ -155,6 +160,30 @@ export default function App() {
             element={
               <ProtectedRoute requiredRole="admin">
                 <AdminInsights />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/workforce"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminWorkforce />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/audit"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminAudit />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/privacy"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminPrivacy />
               </ProtectedRoute>
             }
           />

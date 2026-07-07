@@ -3,6 +3,7 @@ import { supabase } from '../services/supabaseClient'
 import { todayViewRefreshMs } from '../config/appConfig'
 import { STRINGS } from '../utils/strings'
 import { getDailyStats, getTodayPunchesByEmployee } from '../services/punchService'
+import { getApprovedLeaveEmployeeIds } from '../services/workforceService'
 import { PunchDetailModal } from '../components/PunchDetailModal'
 import { formatTime, getLocalDateKey } from '../utils/helpers'
 import { AppShell } from '../components/ui/AppShell'
@@ -40,6 +41,7 @@ export default function AdminTodayView() {
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(null)
   const [selectedPunch, setSelectedPunch] = useState(null)
+  const [onLeaveIds, setOnLeaveIds] = useState(new Set())
   const initialLoadDone = useRef(false)
 
   const loadTodayData = useCallback(async (silent = false) => {
@@ -59,13 +61,15 @@ export default function AdminTodayView() {
 
     setEmployees(empData || [])
 
-    const [statsData, punchData] = await Promise.all([
+    const [statsData, punchData, leaveIds] = await Promise.all([
       getDailyStats(today),
       getTodayPunchesByEmployee(today),
+      getApprovedLeaveEmployeeIds(today),
     ])
 
     setStats(statsData)
     setPunchesByEmployee(punchData)
+    setOnLeaveIds(leaveIds)
     setLastUpdated(new Date())
     initialLoadDone.current = true
     setLoading(false)
@@ -113,7 +117,7 @@ export default function AdminTodayView() {
         </button>
       }
     >
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <div className="card p-4 text-center">
           <p className="text-2xl font-bold text-forest-600">{stats.checkedInCount || 0}</p>
           <p className="text-sm text-earth">{STRINGS.CHECK_IN}</p>
@@ -132,6 +136,10 @@ export default function AdminTodayView() {
             <IconFlag className="w-3.5 h-3.5" />
             {STRINGS.FLAGGED_PUNCHES}
           </p>
+        </div>
+        <div className="card p-4 text-center">
+          <p className="text-2xl font-bold text-violet-600">{onLeaveIds.size}</p>
+          <p className="text-sm text-earth">{STRINGS.ON_LEAVE}</p>
         </div>
       </div>
 
@@ -174,37 +182,53 @@ export default function AdminTodayView() {
                 {employees.map((emp) => {
                   const empPunches = punchesByEmployee[emp.id] || {}
                   const hasFlagged = Object.values(empPunches).some((p) => p.status === 'flagged')
+                  const onLeave = onLeaveIds.has(emp.id)
 
                   return (
                     <tr
                       key={emp.id}
-                      className={`border-b border-forest-50 hover:bg-forest-50/50 ${hasFlagged ? 'bg-red-50/50' : ''}`}
+                      className={`border-b border-forest-50 hover:bg-forest-50/50 ${
+                        onLeave ? 'bg-violet-50/50' : hasFlagged ? 'bg-red-50/50' : ''
+                      }`}
                     >
                       <td className="px-4 py-2 text-sm font-medium">
                         {emp.full_name}
+                        {onLeave && (
+                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-800">
+                            {STRINGS.ON_LEAVE}
+                          </span>
+                        )}
                         {hasFlagged && (
                           <IconFlag className="w-3.5 h-3.5 ml-2 inline text-red-600" />
                         )}
                       </td>
                       <td className="px-4 py-2 text-sm text-earth">{emp.sites?.name || '—'}</td>
-                      <td className="px-4 py-2 text-center text-sm">
-                        <PunchCell
-                          punch={empPunches.check_in}
-                          onClick={() => empPunches.check_in && setSelectedPunch(empPunches.check_in)}
-                        />
-                      </td>
-                      <td className="px-4 py-2 text-center text-sm">
-                        <PunchCell
-                          punch={empPunches.midday}
-                          onClick={() => empPunches.midday && setSelectedPunch(empPunches.midday)}
-                        />
-                      </td>
-                      <td className="px-4 py-2 text-center text-sm">
-                        <PunchCell
-                          punch={empPunches.check_out}
-                          onClick={() => empPunches.check_out && setSelectedPunch(empPunches.check_out)}
-                        />
-                      </td>
+                      {onLeave ? (
+                        <td colSpan={3} className="px-4 py-2 text-center text-sm text-violet-700">
+                          {STRINGS.ADMIN_ON_LEAVE_NOTE}
+                        </td>
+                      ) : (
+                        <>
+                          <td className="px-4 py-2 text-center text-sm">
+                            <PunchCell
+                              punch={empPunches.check_in}
+                              onClick={() => empPunches.check_in && setSelectedPunch(empPunches.check_in)}
+                            />
+                          </td>
+                          <td className="px-4 py-2 text-center text-sm">
+                            <PunchCell
+                              punch={empPunches.midday}
+                              onClick={() => empPunches.midday && setSelectedPunch(empPunches.midday)}
+                            />
+                          </td>
+                          <td className="px-4 py-2 text-center text-sm">
+                            <PunchCell
+                              punch={empPunches.check_out}
+                              onClick={() => empPunches.check_out && setSelectedPunch(empPunches.check_out)}
+                            />
+                          </td>
+                        </>
+                      )}
                     </tr>
                   )
                 })}

@@ -14,6 +14,7 @@ VanTrack is designed for conservation field teams who need reliable check-ins wi
 - **Reference selfie** — one-time setup on first login; used for face match on every punch
 - **Offline support** — punches saved locally (IndexedDB), auto-sync when online
 - **History** — calendar of past attendance with day detail and flags
+- **Leave requests** — request time off from My Timesheet → Leave tab
 - **First-login app tour** — step-by-step guide on the dashboard (replay anytime)
 - **PWA installable** — add to home screen on Android, iPhone, and desktop
 
@@ -26,6 +27,9 @@ VanTrack is designed for conservation field teams who need reliable check-ins wi
 - **Sites** — geofences on a map, active/inactive status
 - **Timesheets** — filter and export CSV/XLSX
 - **Insights** — trends, hours by site, employee leaderboard
+- **Leave & holidays** — employee leave requests, admin approval, org/site holidays
+- **Audit log** — full app activity (employees, sites, assignments, punches, leave, holidays)
+- **Privacy & compliance** — consent before biometrics, retention purge, data export, erasure requests
 - **First-login app tour** — admin walkthrough on the dashboard
 
 ## App Tour (First Login)
@@ -84,6 +88,9 @@ Important migrations beyond the initial five:
 | `010_face_match_client_flags.sql` | Client-side face match flags |
 | `011_site_assignments.sql` | Site assignments + punch authorization |
 | `012_sites_is_active.sql` | Site active/inactive toggle |
+| `013_workforce_audit.sql` | Leave requests, holidays, audit log |
+| `014_app_audit_triggers.sql` | Audit triggers for profiles, sites, assignments, punches |
+| `015_privacy_compliance.sql` | Consent, retention, erasure requests, legal hold |
 
 ### 2. Frontend
 
@@ -102,9 +109,9 @@ Open [http://localhost:5173](http://localhost:5173)
 
 | Role | Email | Password |
 |------|-------|----------|
-| Admin | `admin@vanhajri.test` | `AdminPass123!` |
-| Employee | `raj@vanhajri.test` | `EmpPass123!` |
-| Employee | `priya@vanhajri.test` | `EmpPass123!` |
+| Admin | `admin@vantrack.test` | `AdminPass123!` |
+| Employee | `raj@vantrack.test` | `EmpPass123!` |
+| Employee | `priya@vantrack.test` | `EmpPass123!` |
 
 Create these in Supabase Auth → Users if not using the seed script.
 
