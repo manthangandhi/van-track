@@ -134,6 +134,13 @@ Live URL (after setup): **https://manthangandhi.github.io/van-track/**
    - `https://manthangandhi.github.io/van-track/`
    - `https://manthangandhi.github.io/van-track/reset-password`
 
+### Re-run deployment after adding secrets
+
+Adding secrets does **not** automatically re-run a failed workflow. Either:
+
+- Push any new commit to `main`, or
+- Go to **Actions → Deploy to GitHub Pages → Run workflow** (manual trigger)
+
 ### How deployment works
 
 Every push to `main` runs `.github/workflows/deploy-pages.yml`, which:
