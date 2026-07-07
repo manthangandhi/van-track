@@ -89,20 +89,45 @@ export async function uploadPunchPhoto(employeeId, photoBlob, punchType) {
 export async function saveEmployeeReferenceSelfie(employeeId, photoBlob, faceDescriptor) {
   const path = await uploadReferenceSelfie(employeeId, photoBlob)
 
-  const { error } = await supabase
+  const { data: rpcData, error: rpcError } = await supabase.rpc('enroll_reference_selfie', {
+    p_photo_path: path,
+    p_face_descriptor: faceDescriptor,
+  })
+
+  const rpcMissing =
+    rpcError?.code === 'PGRST202' ||
+    rpcError?.message?.includes('Could not find the function') ||
+    rpcError?.message?.includes('does not exist')
+
+  if (!rpcError && rpcData?.reference_selfie_url && rpcData?.face_descriptor) {
+    return rpcData
+  }
+
+  if (rpcError && !rpcMissing) {
+    throw rpcError
+  }
+
+  const { data, error } = await supabase
     .from('profiles')
     .update({
       reference_selfie_url: path,
       face_descriptor: faceDescriptor,
       reference_selfie_enrolled_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     })
     .eq('id', employeeId)
+    .select('id, reference_selfie_url, face_descriptor, reference_selfie_enrolled_at')
+    .single()
 
   if (error) {
     throw error
   }
 
-  return path
+  if (!data?.reference_selfie_url || !data?.face_descriptor) {
+    throw new Error('PROFILE_UPDATE_FAILED')
+  }
+
+  return data
 }
 
 export async function uploadReferenceSelfie(employeeId, photoBlob) {

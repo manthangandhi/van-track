@@ -233,6 +233,8 @@ export const STRINGS = {
   REFERENCE_SELFIE_STAMP_HINT:
     'A verified attendance stamp with date, IST time, GPS location, and accuracy will be added to your photo.',
   REFERENCE_SELFIE_FAILED: 'Could not save reference selfie. Please try again.',
+  REFERENCE_SELFIE_PROFILE_NOT_SAVED:
+    'Photo uploaded but your profile was not updated. Ask an admin to check database permissions, or try again.',
   REFERENCE_SELFIE_REQUIRED: 'Complete reference selfie setup before punching.',
   NO_FACE_DETECTED: 'No face detected. Face the camera in good light and try again.',
   FACE_MISMATCH_RECORDED:

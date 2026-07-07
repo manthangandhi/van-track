@@ -66,7 +66,7 @@ export function AuthProvider({ children }) {
     return () => subscription?.unsubscribe()
   }, [])
 
-  async function fetchProfile(userId) {
+  async function fetchProfile(userId, { silent = false } = {}) {
     try {
       setError(null)
       const { data, error: profileError } = await supabase
@@ -79,12 +79,20 @@ export function AuthProvider({ children }) {
       setProfile(data)
       return data
     } catch (err) {
-      setProfile(null)
-      setError(err.message)
+      if (!silent) {
+        setProfile(null)
+        setError(err.message)
+      }
       return null
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
+  }
+
+  function patchProfile(updates) {
+    setProfile((prev) => (prev ? { ...prev, ...updates } : prev))
   }
 
   async function signUp(email, password, fullName) {
@@ -177,13 +185,15 @@ export function AuthProvider({ children }) {
     }
   }
 
-  async function refreshProfile() {
+  async function refreshProfile({ silent = false } = {}) {
     const {
       data: { user: currentUser },
     } = await supabase.auth.getUser()
     if (!currentUser?.id) return null
-    setLoading(true)
-    return fetchProfile(currentUser.id)
+    if (!silent) {
+      setLoading(true)
+    }
+    return fetchProfile(currentUser.id, { silent })
   }
 
   async function signOut() {
@@ -222,6 +232,7 @@ export function AuthProvider({ children }) {
     updatePassword,
     clearMessages,
     refreshProfile,
+    patchProfile,
     isAdmin: profile?.role === 'admin',
     isEmployee: profile?.role === 'employee',
   }

@@ -13,9 +13,10 @@ import { extractFaceDescriptor } from '../services/faceService'
 import { STRINGS } from '../utils/strings'
 import { PrivacyConsent } from './PrivacyConsent'
 import { getOrgSettings, needsPrivacyConsent } from '../services/privacyService'
+import { hasEnrolledReferenceSelfie } from '../utils/profileHelpers'
 
 export function ReferenceSelfieSetup() {
-  const { user, profile, refreshProfile } = useAuth()
+  const { user, profile, refreshProfile, patchProfile } = useAuth()
   const { location, loading: gpsLoading, requestLocation, error: gpsError } = useGPS()
   const { cameraPermission, requestCameraPermission } = usePermissions()
   const [showCamera, setShowCamera] = useState(false)
@@ -32,7 +33,7 @@ export function ReferenceSelfieSetup() {
   }, [profile])
 
   const handleConsentAccepted = useCallback(async () => {
-    const updatedProfile = await refreshProfile()
+    const updatedProfile = await refreshProfile({ silent: true })
     await refreshConsent(updatedProfile)
   }, [refreshProfile, refreshConsent])
 
@@ -87,11 +88,17 @@ export function ReferenceSelfieSetup() {
         siteName,
       })
 
-      await saveEmployeeReferenceSelfie(user.id, stampedBlob, descriptor)
-      await refreshProfile()
+      const updated = await saveEmployeeReferenceSelfie(user.id, stampedBlob, descriptor)
+      patchProfile(updated)
+      const refreshed = await refreshProfile({ silent: true })
+      if (!hasEnrolledReferenceSelfie(refreshed || updated)) {
+        throw new Error('PROFILE_UPDATE_FAILED')
+      }
     } catch (err) {
       if (err.message === 'NO_FACE_DETECTED') {
         setError(STRINGS.NO_FACE_DETECTED)
+      } else if (err.message === 'PROFILE_UPDATE_FAILED') {
+        setError(STRINGS.REFERENCE_SELFIE_PROFILE_NOT_SAVED)
       } else {
         setError(err.message || STRINGS.REFERENCE_SELFIE_FAILED)
       }

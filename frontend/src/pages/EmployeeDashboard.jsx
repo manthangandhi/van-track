@@ -19,6 +19,7 @@ import { getActiveAssignments } from '../services/siteAssignmentService'
 import { STRINGS } from '../utils/strings'
 import { formatDate, getLocalDateKey } from '../utils/helpers'
 import { blocksDuplicatePunch, hasValidCheckIn } from '../utils/punchHelpers'
+import { hasEnrolledReferenceSelfie, normalizeFaceDescriptor } from '../utils/profileHelpers'
 import { AppTour } from '../components/AppTour'
 import { useAppTour } from '../hooks/useAppTour'
 import { EMPLOYEE_TOUR_STEPS } from '../config/tourSteps'
@@ -55,11 +56,7 @@ export default function EmployeeDashboard() {
   const [assignmentsError, setAssignmentsError] = useState(null)
   const [onLeaveToday, setOnLeaveToday] = useState(false)
 
-  const hasReferenceSelfie = Boolean(
-    profile?.reference_selfie_url &&
-      Array.isArray(profile?.face_descriptor) &&
-      profile.face_descriptor.length > 0
-  )
+  const hasReferenceSelfie = hasEnrolledReferenceSelfie(profile)
 
   const hasActiveAssignment = activeAssignments.length > 0
   const canPunch =
@@ -179,7 +176,7 @@ export default function EmployeeDashboard() {
         punchType: currentPunchType,
         photoBlob,
         location: coords,
-        referenceDescriptor: profile.face_descriptor,
+        referenceDescriptor: normalizeFaceDescriptor(profile.face_descriptor),
         punchLabel: PUNCH_LABELS[currentPunchType],
         employeeName: profile.full_name,
         siteName: primarySite?.name,
