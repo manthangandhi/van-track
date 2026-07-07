@@ -1,0 +1,7 @@
+# Supabase local/dev config. Link your project before deploying functions:
+#   npx supabase login
+#   npx supabase link --project-ref YOUR_PROJECT_REF
+
+[functions.create-employee]
+# OPTIONS preflight has no JWT; auth is enforced inside the function.
+verify_jwt = false

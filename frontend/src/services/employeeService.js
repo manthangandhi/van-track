@@ -1,4 +1,18 @@
 import { supabase } from './supabaseClient'
+import { STRINGS } from '../utils/strings'
+
+function formatCreateEmployeeError(error) {
+  const message = (error?.message || '').toLowerCase()
+  if (
+    message.includes('not found') ||
+    message.includes('failed to send a request to the edge function') ||
+    message.includes('cors') ||
+    message.includes('err_failed')
+  ) {
+    return STRINGS.CREATE_EMPLOYEE_FUNCTION_MISSING
+  }
+  return error?.message || STRINGS.SERVER_ERROR
+}
 
 /**
  * Create an employee account (admin only — requires deployed create-employee Edge Function)
@@ -25,7 +39,7 @@ export async function createEmployee({
   })
 
   if (error) {
-    throw new Error(error.message || 'Failed to create employee')
+    throw new Error(formatCreateEmployeeError(error))
   }
 
   if (data?.error) {

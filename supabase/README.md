@@ -66,7 +66,33 @@ Add these policies:
   AND (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
   ```
 
-## 5. Create Test Users
+## 5. Deploy `create-employee` Edge Function (required for Admin → Employees)
+
+Admin "Add employee" calls a Supabase Edge Function (browser cannot create auth users with the anon key alone). If this is not deployed, the app shows a CORS / network error.
+
+From the repo root:
+
+```bash
+npx supabase login
+npx supabase link --project-ref YOUR_PROJECT_REF
+npx supabase functions deploy create-employee --project-ref YOUR_PROJECT_REF
+```
+
+Replace `YOUR_PROJECT_REF` with your project ref (Settings → General → Reference ID, e.g. `wockkjrllzrspwwsxxjb`).
+
+Verify deployment:
+
+```bash
+curl -i -X OPTIONS "https://YOUR_PROJECT_REF.supabase.co/functions/v1/create-employee" \
+  -H "Origin: https://manthangandhi.github.io" \
+  -H "Access-Control-Request-Method: POST"
+```
+
+You should get **HTTP 200** (not 404). Supabase injects `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` automatically — no extra secrets needed.
+
+`supabase/config.toml` sets `verify_jwt = false` for this function so OPTIONS preflight works; the function still checks the caller is an admin.
+
+## 6. Create Test Users
 
 1. Go to **Authentication** → **Users**
 2. Click **Add user** (or **Invite**)
@@ -77,7 +103,7 @@ Add these policies:
 
 After users are created, run **seed.sql** to populate profiles/sites/permissions.
 
-## 6. Get API Credentials
+## 7. Get API Credentials
 
 1. Go to **Settings** → **API**
 2. Copy:
@@ -89,7 +115,7 @@ After users are created, run **seed.sql** to populate profiles/sites/permissions
    VITE_SUPABASE_ANON_KEY=eyJh...
    ```
 
-## 7. Enable Auth Providers (Optional)
+## 8. Enable Auth Providers (Optional)
 
 1. **Settings** → **Auth** → **Providers**
 2. For **Email**:
@@ -99,7 +125,7 @@ After users are created, run **seed.sql** to populate profiles/sites/permissions
    - Enable Phone provider
    - Add Twilio credentials if you want SMS (not free, but optional)
 
-## 8. Database Backups & Monitoring
+## 9. Database Backups & Monitoring
 
 Supabase free tier includes:
 - ✅ Automatic backups (7-day retention)
@@ -109,7 +135,7 @@ Supabase free tier includes:
 
 No additional setup needed.
 
-## 9. Verify Setup
+## 10. Verify Setup
 
 In Supabase SQL Editor, run:
 
@@ -128,7 +154,7 @@ WHERE schemaname = 'public' AND rowsecurity = true;
 
 All three should return results ✅
 
-## 10. Test Auth Flow
+## 11. Test Auth Flow
 
 1. Navigate to frontend (http://localhost:5173 or deployed URL)
 2. Try login: `admin@vantrack.test` / `AdminPass123!`

@@ -180,6 +180,8 @@ export const STRINGS = {
   PASSWORD_TOO_SHORT: 'Password must be at least 6 characters',
   NETWORK_ERROR: 'Network error. Please check your connection.',
   SERVER_ERROR: 'Server error. Please try again later.',
+  CREATE_EMPLOYEE_FUNCTION_MISSING:
+    'Employee creation service is not deployed. Deploy the create-employee Supabase Edge Function (see supabase/README.md).',
   NOT_FOUND: 'Not found',
   UNAUTHORIZED: 'Unauthorized. Please login.',
   FORBIDDEN: 'Forbidden. You do not have permission.',
