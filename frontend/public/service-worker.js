@@ -81,8 +81,7 @@ self.addEventListener('fetch', (event) => {
             return response
           })
           .catch(() => {
-            // Return offline page if available
-            return caches.match(OFFLINE_URL)
+            return caches.match('./offline.html')
           })
       })
     )
