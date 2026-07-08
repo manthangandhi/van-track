@@ -1,4 +1,4 @@
-import React, { createContext, useEffect, useState } from 'react'
+import React, { createContext, useEffect, useRef, useState } from 'react'
 import { supabase } from '../services/supabaseClient'
 import { STRINGS } from '../utils/strings'
 
@@ -30,13 +30,12 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState(null)
   const [recoveryMode, setRecoveryMode] = useState(false)
   const [infoMessage, setInfoMessage] = useState(null)
+  const profileFetchId = useRef(0)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchProfile(session.user.id)
-      } else {
+      if (!session?.user) {
         setLoading(false)
       }
     })
@@ -67,6 +66,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   async function fetchProfile(userId, { silent = false } = {}) {
+    const fetchId = ++profileFetchId.current
     try {
       setError(null)
       const { data, error: profileError } = await supabase
@@ -76,16 +76,18 @@ export function AuthProvider({ children }) {
         .single()
 
       if (profileError) throw profileError
+      if (fetchId !== profileFetchId.current) return null
       setProfile(data)
       return data
     } catch (err) {
+      if (fetchId !== profileFetchId.current) return null
       if (!silent) {
         setProfile(null)
         setError(err.message)
       }
       return null
     } finally {
-      if (!silent) {
+      if (fetchId === profileFetchId.current && !silent) {
         setLoading(false)
       }
     }
@@ -103,26 +105,28 @@ export function AuthProvider({ children }) {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
+        options: fullName?.trim() ? { data: { full_name: fullName.trim() } } : undefined,
       })
       if (signUpError) throw signUpError
-      if (data.user && fullName?.trim()) {
-        await supabase
+      if (data.session && data.user && fullName?.trim()) {
+        const { error: profileError } = await supabase
           .from('profiles')
           .update({ full_name: fullName.trim() })
           .eq('id', data.user.id)
+        if (profileError) throw profileError
       }
 
       if (data.user && !data.session) {
         setInfoMessage(STRINGS.CONFIRM_EMAIL_SENT)
+        setLoading(false)
       }
 
       return { data, error: null, needsConfirmation: !data.session }
     } catch (err) {
       const friendly = formatAuthError(err, 'signup')
       setError(friendly)
-      return { data: null, error: { ...err, message: friendly } }
-    } finally {
       setLoading(false)
+      return { data: null, error: { ...err, message: friendly } }
     }
   }
 
@@ -140,9 +144,8 @@ export function AuthProvider({ children }) {
     } catch (err) {
       const friendly = formatAuthError(err, 'signin')
       setError(friendly)
-      return { data: null, error: { ...err, message: friendly } }
-    } finally {
       setLoading(false)
+      return { data: null, error: { ...err, message: friendly } }
     }
   }
 

@@ -177,6 +177,7 @@ export const STRINGS = {
   WARNING: 'Warning',
   REQUIRED: 'This field is required',
   INVALID_EMAIL: 'Invalid email address',
+  INVALID_DATE_RANGE: 'End date must be on or after start date',
   PASSWORD_TOO_SHORT: 'Password must be at least 6 characters',
   NETWORK_ERROR: 'Network error. Please check your connection.',
   SERVER_ERROR: 'Server error. Please try again later.',

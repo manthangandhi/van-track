@@ -39,6 +39,12 @@ export async function exportEmployeeData(employeeId) {
     getOrgSettings(),
   ])
 
+  if (profileRes.error) throw profileRes.error
+  if (punchesRes.error) throw punchesRes.error
+  if (leaveRes.error) throw leaveRes.error
+  if (assignmentsRes.error) throw assignmentsRes.error
+  if (!profileRes.data) throw new Error('Profile not found')
+
   const punches = (punchesRes.data || []).map((p) => ({
     ...p,
     photo_url: p.photo_url === 'purged' ? '[purged per retention policy]' : '[stored — not included in export]',

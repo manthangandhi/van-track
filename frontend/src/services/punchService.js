@@ -292,7 +292,9 @@ export async function getTodayPunchesIncludingQueued(employeeId, dateKey = getLo
   ])
 
   const queuedTypes = new Set(queued.map((item) => item.punchType))
-  const merged = serverPunches.filter((punch) => !queuedTypes.has(punch.punch_type))
+  const merged = serverPunches.filter(
+    (punch) => !(queuedTypes.has(punch.punch_type) && blocksDuplicatePunch(punch))
+  )
 
   for (const item of queued) {
     merged.push({

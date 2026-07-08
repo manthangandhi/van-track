@@ -79,7 +79,7 @@ export default function AdminEmployees() {
       ])
 
     if (empError || siteError) {
-      setFormError(empError?.message || siteError?.message || STRINGS.SERVER_ERROR)
+      setPageError(empError?.message || siteError?.message || STRINGS.SERVER_ERROR)
     }
 
     setEmployees(empData || [])
@@ -253,7 +253,6 @@ export default function AdminEmployees() {
     setPendingFaceDescriptor(null)
     setFormData(emptyForm)
     setFormError(null)
-    setPageError(null)
   }
 
   async function setEmployeeActive(empId, isActive) {
@@ -263,7 +262,7 @@ export default function AdminEmployees() {
       .eq('id', empId)
 
     if (error) {
-      setFormError(error.message)
+      setPageError(error.message)
       return
     }
 

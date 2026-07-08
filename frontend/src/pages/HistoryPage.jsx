@@ -66,6 +66,8 @@ export default function HistoryPage() {
   const [tab, setTab] = useState('attendance')
   const [assignments, setAssignments] = useState([])
   const [assignmentsLoading, setAssignmentsLoading] = useState(false)
+  const [attendanceError, setAttendanceError] = useState(null)
+  const [assignmentsError, setAssignmentsError] = useState(null)
 
   const endDate = getLocalDateKey()
   const [startDate, setStartDate] = useState(getLocalDateKey(addDays(new Date(), -30)))
@@ -82,14 +84,21 @@ export default function HistoryPage() {
   const loadAttendance = useCallback(async () => {
     if (!user) return
     setLoading(true)
-    const data = await getAttendanceDays(user.id, startDate, rangeEnd, {
-      siteId: selectedSite || null,
-      status: statusFilter || null,
-    })
-    setAttendanceDays(data)
-    setSelectedDay(null)
-    setDayPunches([])
-    setLoading(false)
+    setAttendanceError(null)
+    try {
+      const data = await getAttendanceDays(user.id, startDate, rangeEnd, {
+        siteId: selectedSite || null,
+        status: statusFilter || null,
+      })
+      setAttendanceDays(data)
+      setSelectedDay(null)
+      setDayPunches([])
+    } catch (err) {
+      setAttendanceDays([])
+      setAttendanceError(err.message || STRINGS.SERVER_ERROR)
+    } finally {
+      setLoading(false)
+    }
   }, [user, startDate, rangeEnd, selectedSite, statusFilter])
 
   useEffect(() => {
@@ -112,12 +121,19 @@ export default function HistoryPage() {
 
   async function loadAssignments() {
     setAssignmentsLoading(true)
-    const data = await getAssignmentsForEmployee(user.id, {
-      startDate,
-      endDate: rangeEnd,
-    })
-    setAssignments(data)
-    setAssignmentsLoading(false)
+    setAssignmentsError(null)
+    try {
+      const data = await getAssignmentsForEmployee(user.id, {
+        startDate,
+        endDate: rangeEnd,
+      })
+      setAssignments(data)
+    } catch (err) {
+      setAssignments([])
+      setAssignmentsError(err.message || STRINGS.SERVER_ERROR)
+    } finally {
+      setAssignmentsLoading(false)
+    }
   }
 
   function handleExportAssignments() {
@@ -171,7 +187,7 @@ export default function HistoryPage() {
   const summary = summarizeEmployeeAttendance(attendanceDays)
   const assignedSiteName = sites.find((s) => s.id === profile?.assigned_site_id)?.name
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDateKey()
   const showDateFilter = tab === 'attendance' || tab === 'assignments'
 
   return (
@@ -298,6 +314,7 @@ export default function HistoryPage() {
 
       {tab === 'attendance' && (
       <>
+      {attendanceError && <div className="alert-error mb-4">{attendanceError}</div>}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
         <StatCard label={STRINGS.TOTAL_HOURS} value={`${summary.totalHours.toFixed(1)}h`} />
         <StatCard label={STRINGS.FULL_DAY} value={summary.fullDays} accent="text-forest-600" />
@@ -328,7 +345,7 @@ export default function HistoryPage() {
             </div>
             {loading ? (
               <p className="text-earth">{STRINGS.LOADING}...</p>
-            ) : attendanceDays.length === 0 ? (
+            ) : attendanceError ? null : attendanceDays.length === 0 ? (
               <p className="text-earth">{STRINGS.NO_DATA}</p>
             ) : (
               <div className="space-y-2 max-h-[28rem] overflow-y-auto pr-1">
@@ -405,6 +422,7 @@ export default function HistoryPage() {
 
       {tab === 'assignments' && (
         <>
+          {assignmentsError && <div className="alert-error mb-4">{assignmentsError}</div>}
           <div className="flex justify-end mb-4">
             <button
               type="button"

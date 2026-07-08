@@ -8,7 +8,7 @@ import {
   generateXLSX,
 } from '../services/timesheetService'
 import { STRINGS } from '../utils/strings'
-import { formatDate, addDays, getDayBoundsISO } from '../utils/helpers'
+import { formatDate, addDays, getDayBoundsISO, getLocalDateKey } from '../utils/helpers'
 import { TimelineView } from '../components/TimelineView'
 import { AppShell } from '../components/ui/AppShell'
 import { IconDownload, IconFilter } from '../components/ui/Icons'
@@ -40,8 +40,8 @@ const STATUS_DOT = {
 
 export default function AdminTimesheet() {
   const [sites, setSites] = useState([])
-  const [startDate, setStartDate] = useState(addDays(new Date(), -30).toISOString().split('T')[0])
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
+  const [startDate, setStartDate] = useState(getLocalDateKey(addDays(new Date(), -30)))
+  const [endDate, setEndDate] = useState(getLocalDateKey())
   const [activePreset, setActivePreset] = useState('30d')
   const [selectedSite, setSelectedSite] = useState('')
   const [search, setSearch] = useState('')
@@ -52,6 +52,7 @@ export default function AdminTimesheet() {
   const [dayPunches, setDayPunches] = useState([])
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState(null)
+  const [dayDetailError, setDayDetailError] = useState(null)
 
   useEffect(() => {
     supabase.from('sites').select('id, name').order('name').then(({ data }) => setSites(data || []))
@@ -87,25 +88,39 @@ export default function AdminTimesheet() {
     return aggregated.filter((r) => r.fullName?.toLowerCase().includes(q))
   }, [aggregated, search])
 
-  const totals = useMemo(() => summarizeEmployeeAttendance(rawRecords), [rawRecords])
+  const filteredRawRecords = useMemo(() => {
+    const ids = new Set(filteredRows.map((r) => r.employeeId))
+    return rawRecords.filter((r) => ids.has(r.employee_id))
+  }, [rawRecords, filteredRows])
+
+  const totals = useMemo(
+    () => summarizeEmployeeAttendance(filteredRawRecords),
+    [filteredRawRecords]
+  )
 
   function applyPreset(preset) {
     setActivePreset(preset.id)
-    const end = new Date().toISOString().split('T')[0]
+    const end = getLocalDateKey()
     setEndDate(end)
-    setStartDate(addDays(new Date(end), -preset.days).toISOString().split('T')[0])
+    setStartDate(getLocalDateKey(addDays(new Date(), -preset.days)))
   }
 
   async function handleDayClick(day, employeeId) {
     setSelectedDay(day)
+    setDayDetailError(null)
     const { start, end } = getDayBoundsISO(day.work_date)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('punches')
       .select('*')
       .eq('employee_id', employeeId)
       .gte('server_timestamp', start)
       .lte('server_timestamp', end)
       .order('server_timestamp', { ascending: true })
+    if (error) {
+      setDayPunches([])
+      setDayDetailError(error.message)
+      return
+    }
     setDayPunches(data || [])
   }
 
@@ -174,11 +189,11 @@ export default function AdminTimesheet() {
           className="input-field py-1.5 text-sm bg-white/10 border-white/20 text-white placeholder:text-forest-300 max-w-[14rem]"
         />
         <div className="flex gap-2 lg:ml-0">
-          <button type="button" onClick={() => generateXLSX(aggregated, `timesheet-${startDate}-${endDate}.xlsx`)} disabled={!aggregated.length} className="px-3 py-1.5 rounded-md bg-white text-forest-900 text-xs font-semibold flex items-center gap-1 disabled:opacity-40">
+          <button type="button" onClick={() => generateXLSX(filteredRows, `timesheet-${startDate}-${endDate}.xlsx`)} disabled={!filteredRows.length} className="px-3 py-1.5 rounded-md bg-white text-forest-900 text-xs font-semibold flex items-center gap-1 disabled:opacity-40">
             <IconDownload className="w-3.5 h-3.5" />
             XLSX
           </button>
-          <button type="button" onClick={() => { const csv = generateCSV(aggregated); const b = new Blob([csv], { type: 'text/csv' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `timesheet-${startDate}-${endDate}.csv`; a.click() }} disabled={!aggregated.length} className="px-3 py-1.5 rounded-md bg-white/15 hover:bg-white/25 text-xs font-semibold flex items-center gap-1 disabled:opacity-40">
+          <button type="button" onClick={() => { const csv = generateCSV(filteredRows); const b = new Blob([csv], { type: 'text/csv' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `timesheet-${startDate}-${endDate}.csv`; a.click() }} disabled={!filteredRows.length} className="px-3 py-1.5 rounded-md bg-white/15 hover:bg-white/25 text-xs font-semibold flex items-center gap-1 disabled:opacity-40">
             <IconDownload className="w-3.5 h-3.5" />
             CSV
           </button>
@@ -296,6 +311,7 @@ export default function AdminTimesheet() {
                                   <p className="text-xs font-semibold uppercase tracking-wide text-earth mb-2">
                                     Punches — {formatDate(selectedDay.work_date)}
                                   </p>
+                                  {dayDetailError && <div className="alert-error mb-2 text-xs">{dayDetailError}</div>}
                                   <TimelineView punches={dayPunches} />
                                 </>
                               ) : (

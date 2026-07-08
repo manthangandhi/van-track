@@ -48,8 +48,11 @@ export function ReferenceSelfieSetup() {
 
   async function openCamera() {
     setError(null)
-    if (!cameraPermission) {
-      await requestCameraPermission()
+    const granted =
+      cameraPermission === 'granted' || (await requestCameraPermission())
+    if (!granted) {
+      setError(STRINGS.CAMERA_DENIED)
+      return
     }
     setShowCamera(true)
   }

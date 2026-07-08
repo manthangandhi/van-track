@@ -21,7 +21,7 @@ export async function getAttendanceDays(employeeId, startDate, endDate, options 
 
   if (error) {
     console.error('Error fetching attendance days:', error)
-    return []
+    throw error
   }
 
   let records = data || []
@@ -136,7 +136,7 @@ export async function generateTimesheet(employeeIds, siteIds, startDate, endDate
 
   if (error) {
     console.error('Error generating timesheet:', error)
-    return []
+    throw error
   }
 
   let records = data || []

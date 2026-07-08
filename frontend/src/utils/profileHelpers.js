@@ -6,8 +6,14 @@ export function normalizeFaceDescriptor(value) {
   if (Array.isArray(value)) {
     return value.length > 0 ? value : null
   }
-  if (typeof value === 'object' && typeof value.length === 'number' && value.length > 0) {
-    return Array.from(value)
+  if (typeof value === 'object') {
+    if (typeof value.length === 'number' && value.length > 0) {
+      return Array.from(value)
+    }
+    const keys = Object.keys(value).filter((k) => /^\d+$/.test(k))
+    if (keys.length > 0) {
+      return keys.sort((a, b) => Number(a) - Number(b)).map((k) => value[k])
+    }
   }
   return null
 }

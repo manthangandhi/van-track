@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient'
 import { isSiteActive } from './sitesService'
+import { getLocalDateKey } from '../utils/helpers'
 
 // site_assignments has two FKs to profiles (employee_id, created_by) — must disambiguate embeds
 const EMPLOYEE_PROFILE = 'profiles!employee_id'
@@ -18,7 +19,7 @@ async function queryActiveAssignments(employeeId, date, includeSiteIsActive) {
     .order('start_date', { ascending: false })
 }
 
-export function assignmentStatus(assignment, refDate = new Date().toISOString().split('T')[0]) {
+export function assignmentStatus(assignment, refDate = getLocalDateKey()) {
   if (assignment.start_date > refDate) return 'upcoming'
   if (assignment.end_date && assignment.end_date < refDate) return 'expired'
   return 'active'
@@ -92,7 +93,7 @@ export async function getAssignmentsForEmployee(employeeId, { startDate, endDate
   const { data, error } = await query
   if (error) {
     console.error('Employee assignments error:', error)
-    return []
+    throw error
   }
   return data || []
 }

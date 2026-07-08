@@ -55,11 +55,13 @@ export default function AdminTodayView() {
     try {
       const today = getLocalDateKey()
 
-      const { data: empData } = await supabase
+      const { data: empData, error: empError } = await supabase
         .from('profiles')
         .select('*, sites(name)')
         .eq('role', 'employee')
         .eq('is_active', true)
+
+      if (empError) throw empError
 
       setEmployees(empData || [])
 
@@ -77,6 +79,9 @@ export default function AdminTodayView() {
       initialLoadDone.current = true
     } catch (err) {
       setLoadError(err.message || STRINGS.SERVER_ERROR)
+      setStats({})
+      setPunchesByEmployee({})
+      setOnLeaveIds(new Set())
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -147,7 +152,9 @@ export default function AdminTodayView() {
           </p>
         </div>
         <div className="card p-4 text-center">
-          <p className="text-2xl font-bold text-violet-600">{onLeaveIds.size}</p>
+          <p className="text-2xl font-bold text-violet-600">
+            {employees.filter((e) => onLeaveIds.has(e.id)).length}
+          </p>
           <p className="text-sm text-earth">{STRINGS.ON_LEAVE}</p>
         </div>
       </div>

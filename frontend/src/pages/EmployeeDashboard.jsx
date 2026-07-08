@@ -77,7 +77,10 @@ export default function EmployeeDashboard() {
       loadActiveAssignments()
       isOnApprovedLeave(user.id, getLocalDateKey())
         .then(setOnLeaveToday)
-        .catch(() => setOnLeaveToday(true))
+        .catch((err) => {
+          setOnLeaveToday(false)
+          setAssignmentsError(err.message || STRINGS.SERVER_ERROR)
+        })
     }
   }, [user, profile])
 
