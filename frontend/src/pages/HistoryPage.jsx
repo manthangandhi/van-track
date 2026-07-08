@@ -99,10 +99,10 @@ export default function HistoryPage() {
   }, [user, profile, loadSites])
 
   useEffect(() => {
-    if (user && profile) {
+    if (user && profile && tab === 'attendance') {
       loadAttendance()
     }
-  }, [user, profile, loadAttendance])
+  }, [user, profile, tab, loadAttendance])
 
   useEffect(() => {
     if (user && profile && tab === 'assignments') {
@@ -172,6 +172,7 @@ export default function HistoryPage() {
   const assignedSiteName = sites.find((s) => s.id === profile?.assigned_site_id)?.name
 
   const today = new Date().toISOString().split('T')[0]
+  const showDateFilter = tab === 'attendance' || tab === 'assignments'
 
   return (
     <AppShell title={STRINGS.MY_TIMESHEET} backTo="/dashboard" maxWidth="max-w-5xl">
@@ -195,95 +196,105 @@ export default function HistoryPage() {
         ))}
       </div>
 
-      <div className="card p-5 mb-6">
-        <div className="flex items-center gap-2 mb-4">
-          <IconFilter className="w-5 h-5 text-forest-600" />
-          <h2 className="display-title text-lg text-forest-900">{STRINGS.FILTER}</h2>
-        </div>
+      {showDateFilter && (
+        <div className="card p-5 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <IconFilter className="w-5 h-5 text-forest-600" />
+            <h2 className="display-title text-lg text-forest-900">{STRINGS.FILTER}</h2>
+          </div>
 
-        <div className="flex flex-wrap gap-2 mb-4">
-          {DATE_PRESETS.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => applyPreset(preset)}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium transition ${
-                activePreset === preset.id
-                  ? 'bg-forest-700 text-white'
-                  : 'bg-forest-50 text-forest-700 hover:bg-forest-100'
-              }`}
-            >
-              {preset.label}
-            </button>
-          ))}
-        </div>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {DATE_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => applyPreset(preset)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition ${
+                  activePreset === preset.id
+                    ? 'bg-forest-700 text-white'
+                    : 'bg-forest-50 text-forest-700 hover:bg-forest-100'
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div>
-            <label className="label-field">{STRINGS.FROM}</label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => {
-                setStartDate(e.target.value)
-                setActivePreset('custom')
-              }}
-              className="input-field"
-            />
+          <div
+            className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${
+              tab === 'attendance' ? 'lg:grid-cols-4' : 'lg:grid-cols-2'
+            }`}
+          >
+            <div>
+              <label className="label-field">{STRINGS.FROM}</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value)
+                  setActivePreset('custom')
+                }}
+                className="input-field"
+              />
+            </div>
+            <div>
+              <label className="label-field">{STRINGS.TO}</label>
+              <input
+                type="date"
+                value={rangeEnd}
+                onChange={(e) => {
+                  setRangeEnd(e.target.value)
+                  setActivePreset('custom')
+                }}
+                className="input-field"
+              />
+            </div>
+            {tab === 'attendance' && (
+              <>
+                <div>
+                  <label className="label-field flex items-center gap-1.5">
+                    <IconMapPin className="w-3.5 h-3.5" />
+                    {STRINGS.SITE}
+                  </label>
+                  <select
+                    value={selectedSite}
+                    onChange={(e) => setSelectedSite(e.target.value)}
+                    className="input-field"
+                  >
+                    <option value="">{STRINGS.ALL_LOCATIONS}</option>
+                    {sites.map((site) => (
+                      <option key={site.id} value={site.id}>
+                        {site.name}
+                        {site.id === profile?.assigned_site_id ? ` (${STRINGS.ASSIGNED_SITE})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label-field">{STRINGS.STATUS}</label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="input-field"
+                  >
+                    {STATUS_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
           </div>
-          <div>
-            <label className="label-field">{STRINGS.TO}</label>
-            <input
-              type="date"
-              value={rangeEnd}
-              onChange={(e) => {
-                setRangeEnd(e.target.value)
-                setActivePreset('custom')
-              }}
-              className="input-field"
-            />
-          </div>
-          <div>
-            <label className="label-field flex items-center gap-1.5">
-              <IconMapPin className="w-3.5 h-3.5" />
-              {STRINGS.SITE}
-            </label>
-            <select
-              value={selectedSite}
-              onChange={(e) => setSelectedSite(e.target.value)}
-              className="input-field"
-            >
-              <option value="">{STRINGS.ALL_LOCATIONS}</option>
-              {sites.map((site) => (
-                <option key={site.id} value={site.id}>
-                  {site.name}
-                  {site.id === profile?.assigned_site_id ? ` (${STRINGS.ASSIGNED_SITE})` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label-field">{STRINGS.STATUS}</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="input-field"
-            >
-              {STATUS_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
 
-        {assignedSiteName && (
-          <p className="text-xs text-earth mt-3">
-            {STRINGS.ASSIGNED_SITE}: <strong className="text-forest-800">{assignedSiteName}</strong>
-          </p>
-        )}
-      </div>
+          {tab === 'attendance' && assignedSiteName && (
+            <p className="text-xs text-earth mt-3">
+              {STRINGS.ASSIGNED_SITE}: <strong className="text-forest-800">{assignedSiteName}</strong>
+            </p>
+          )}
+        </div>
+      )}
 
       {tab === 'attendance' && (
       <>
