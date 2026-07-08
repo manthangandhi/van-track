@@ -35,5 +35,9 @@ pnpm-debug.log*
 .temp/
 tmp/
 
+# Playwright E2E
+frontend/test-results/
+frontend/playwright-report/
+
 # OS
 .DS_Store

@@ -64,13 +64,15 @@ export default function LoginPage() {
 
         <form onSubmit={handleForgotSubmit} className="space-y-4">
           <div>
-            <label className="label-field">{STRINGS.EMAIL}</label>
+            <label htmlFor="forgot-email" className="label-field">{STRINGS.EMAIL}</label>
             <input
+              id="forgot-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className={`input-field ${validationErrors.email ? 'border-red-400' : ''}`}
               placeholder="you@example.com"
+              autoComplete="email"
             />
             {validationErrors.email && (
               <p className="text-red-600 text-xs mt-1">{validationErrors.email}</p>
@@ -106,13 +108,15 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit} className="space-y-4">
         {isSignUp && (
           <div>
-            <label className="label-field">{STRINGS.FULL_NAME}</label>
+            <label htmlFor="signup-full-name" className="label-field">{STRINGS.FULL_NAME}</label>
             <input
+              id="signup-full-name"
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               className={`input-field ${validationErrors.fullName ? 'border-red-400' : ''}`}
               placeholder="Your Name"
+              autoComplete="name"
             />
             {validationErrors.fullName && (
               <p className="text-red-600 text-xs mt-1">{validationErrors.fullName}</p>
@@ -121,13 +125,15 @@ export default function LoginPage() {
         )}
 
         <div>
-          <label className="label-field">{STRINGS.EMAIL}</label>
+          <label htmlFor="login-email" className="label-field">{STRINGS.EMAIL}</label>
           <input
+            id="login-email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className={`input-field ${validationErrors.email ? 'border-red-400' : ''}`}
             placeholder="you@example.com"
+            autoComplete="email"
           />
           {validationErrors.email && (
             <p className="text-red-600 text-xs mt-1">{validationErrors.email}</p>
@@ -135,13 +141,15 @@ export default function LoginPage() {
         </div>
 
         <div>
-          <label className="label-field">{STRINGS.PASSWORD}</label>
+          <label htmlFor="login-password" className="label-field">{STRINGS.PASSWORD}</label>
           <input
+            id="login-password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className={`input-field ${validationErrors.password ? 'border-red-400' : ''}`}
             placeholder="••••••••"
+            autoComplete={isSignUp ? 'new-password' : 'current-password'}
           />
           {validationErrors.password && (
             <p className="text-red-600 text-xs mt-1">{validationErrors.password}</p>
